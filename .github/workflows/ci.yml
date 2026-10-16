@@ -1,0 +1,56 @@
+# The free checks: no secrets, no model calls, no network beyond installing packages. The `docker` and `blender` tests
+# need a Docker daemon with the `python:3.12-slim` image and a Blender install, so they are skipped here (run them on a
+# machine that has both).
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: lint and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: uv sync --extra dev
+      - name: Lint
+        run: uv run ruff check src tests render examples tools
+      - name: Test
+        run: uv run pytest -q -n auto -m "not docker and not blender"
+
+  build:
+    name: build and install the wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Build the sdist and the wheel
+        run: uv build
+      - name: Install the wheel in a fresh environment
+        run: |
+          uv venv "$RUNNER_TEMP/wheel-venv"
+          uv pip install --python "$RUNNER_TEMP/wheel-venv" dist/*.whl
+      - name: Run the installed command
+        run: |
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/wheel-venv/bin/stbench" --help

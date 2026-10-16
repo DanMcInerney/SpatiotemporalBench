@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use SpatiotemporalBench, please cite it as below."
+title: "SpatiotemporalBench: spatio-temporal memory of a world perceived through a robot's sensors"
+type: software
+authors:
+  - name: "the SpatiotemporalBench authors"
+abstract: >-
+  A benchmark of an agent's task-conditioned spatiotemporal ability, perception and memory both: a simulated robot does
+  a realistic job (a robot vacuum or a home helper in an apartment, a tote robot in a warehouse, a delivery drone over a
+  downtown district) in a photoreal, changing place, and an agent that keeps its own memory is streamed what the
+  robot's sensors recorded and asked the questions a controller would ask itself, during the job and after it. Gold
+  answers are computed by code from the simulator's full record of the world, and validity gates over scripted
+  baselines keep out question families that shortcuts can answer.
+version: 0.11.0
+date-released: 2026-10-16
+license: MIT
+repository-code: "https://github.com/DanMcInerney/SpatiotemporalBench"
+keywords:
+  - benchmark
+  - robotics
+  - memory
+  - spatial reasoning
+  - embodied AI

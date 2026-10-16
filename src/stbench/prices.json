@@ -1,0 +1,59 @@
+{
+  "unit": "USD per 1,000,000 tokens",
+  "models": {
+    "gpt-6-luna": {
+      "in": 0.1,
+      "cached_in": 0.01,
+      "cache_write_in": 0.125,
+      "out": 0.5,
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "retrieved": "2026-10-07",
+      "note": "OpenAI's Standard table, short context (up to 272K input tokens) only; above 272K the page lists 0.20 in, 0.02 cached, 0.25 cache writes and 0.75 out, not modelled. The Batch, Flex, Fast and Ultrafast tiers are not modelled. Cache writes are priced on the page (1.25 times input). The Codex CLI (codex-cli 0.159.3) prints no cache writes (cache_write_input_tokens is 0 in every exec), so the cost of a Codex run is a lower bound, short by at most 0.25 times its uncached input tokens at the `in` price."
+    },
+    "gpt-6.1-sol": {
+      "in": 2.0,
+      "cached_in": 0.1,
+      "cache_write_in": 2.5,
+      "out": 10.0,
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "retrieved": "2026-10-07",
+      "note": "OpenAI's Standard table, short context (up to 272K input tokens) only; above 272K the page lists 4.00 in, 0.20 cached, 5.00 cache writes and 15.00 out, not modelled. The Batch, Flex, Fast and Ultrafast tiers are not modelled. Cache writes are priced on the page (1.25 times input). The Codex CLI (codex-cli 0.159.3) prints no cache writes (cache_write_input_tokens is 0 in every exec), so the cost of a Codex run is a lower bound, short by at most 0.25 times its uncached input tokens at the `in` price."
+    },
+    "claude-haiku-4-5": {
+      "in": 1.0,
+      "cached_in": 0.1,
+      "cache_write_in": 1.25,
+      "out": 5.0,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "retrieved": "2026-10-07",
+      "note": "Anthropic's \"Claude Haiku 4.5\" row (the page names the model, not its API id). Cache writes are the 5-minute ones (1.25 times input); 1-hour cache writes ($2.00) are not modelled. The whole context window is one rate. The Batch API and US-only inference (1.1 times) are not modelled."
+    },
+    "claude-haiku-5-5": {
+      "in": 0.1,
+      "cached_in": 0.01,
+      "cache_write_in": 0.125,
+      "out": 0.5,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "retrieved": "2026-10-16",
+      "note": "Anthropic's \"Claude Haiku 5.5\" row: $0.10 in, $0.50 out for prompts up to 100K tokens (as listed in the claude-api skill's model table, cached 2026-10-06); above 100K the table lists $0.50 in and $2.50 out, not modelled, so a long case's cost is a lower bound. Cache reads (0.1 times input) and 5-minute cache writes (1.25 times input) are the standard multipliers, not read from the table. Run through Claude Code on a subscription, the cost is the API equivalent: the subscription pays by quota."
+    },
+    "claude-sonnet-5-5": {
+      "in": 2.0,
+      "cached_in": 0.2,
+      "cache_write_in": 2.5,
+      "out": 10.0,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "retrieved": "2026-10-07",
+      "note": "Anthropic's \"Claude Sonnet 5.5\" row (the page names the model, not its API id). Cache writes are the 5-minute ones (1.25 times input); 1-hour cache writes ($4.00) are not modelled. The whole context window is one rate. The Batch API, fast mode and US-only inference (1.1 times) are not modelled."
+    },
+    "claude-opus-5-5": {
+      "in": 4.0,
+      "cached_in": 0.2,
+      "cache_write_in": 5.0,
+      "out": 20.0,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "retrieved": "2026-10-16",
+      "note": "Anthropic's \"Claude Opus 5.5\" row: $4 in, $20 out, cache reads $0.20 (as listed in the claude-api skill's model table, cached 2026-10-06). Cache writes are the 5-minute ones (1.25 times input); 1-hour cache writes are not modelled. Fast mode, the Batch API and US-only inference are not modelled. Run through Claude Code on a subscription, the cost is the API equivalent: the subscription pays by quota."
+    }
+  }
+}

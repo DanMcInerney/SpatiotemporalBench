@@ -1,0 +1,276 @@
+{
+  "name": "warehouse_a",
+  "catalog": "warehouse",
+  "bounds": [0, 0, 17.6, 20.0],
+  "wall_thickness": 0.2,
+  "wall_height": 6.0,
+  "regions": [
+    {"id": "R1", "name": "dock", "polygon": [[0.1, 0.1], [17.5, 0.1], [17.5, 9.1], [0.1, 9.1]], "anchor": [8.8, 6.0], "level": 0, "z0": 0.0, "z1": 6.0},
+    {"id": "R2", "name": "west aisle", "kind": "aisle", "polygon": [[0.1, 9.1], [5.9, 9.1], [5.9, 19.9], [0.1, 19.9]], "anchor": [3.0, 12.0], "level": 0, "z0": 0.0, "z1": 6.0},
+    {"id": "R3", "name": "middle aisle", "kind": "aisle", "polygon": [[5.9, 9.1], [11.7, 9.1], [11.7, 19.9], [5.9, 19.9]], "anchor": [8.8, 12.0], "level": 0, "z0": 0.0, "z1": 6.0},
+    {"id": "R4", "name": "east aisle", "kind": "aisle", "polygon": [[11.7, 9.1], [17.5, 9.1], [17.5, 19.9], [11.7, 19.9]], "anchor": [14.6, 12.0], "level": 0, "z0": 0.0, "z1": 6.0}
+  ],
+  "walls": [
+    {"id": "W01", "a": [0, 0], "b": [17.6, 0], "thickness": 0.2, "height": 6.0, "exterior": true},
+    {"id": "W02", "a": [17.6, 0], "b": [17.6, 20], "thickness": 0.2, "height": 6.0, "exterior": true},
+    {"id": "W03", "a": [0, 20], "b": [17.6, 20], "thickness": 0.2, "height": 6.0, "exterior": true},
+    {"id": "W04", "a": [0, 0], "b": [0, 20], "thickness": 0.2, "height": 6.0, "exterior": true}
+  ],
+  "openings": [],
+  "windows": [],
+  "furniture": [
+    {"id": "F01", "name": "dock door", "kind": "dock_door", "mobility": "fixed", "center": [3.7, 0.15], "size": [0.1, 2.4, 3.0], "yaw": 1.5707963267948966, "color": "grey", "blocks": true, "surfaces": []},
+    {"id": "F02", "name": "dock door", "kind": "dock_door", "mobility": "fixed", "center": [7.1, 0.15], "size": [0.1, 2.4, 3.0], "yaw": 1.5707963267948966, "color": "grey", "blocks": true, "surfaces": []},
+    {"id": "F03", "name": "dock door", "kind": "dock_door", "mobility": "fixed", "center": [10.5, 0.15], "size": [0.1, 2.4, 3.0], "yaw": 1.5707963267948966, "color": "grey", "blocks": true, "surfaces": []},
+    {"id": "F04", "name": "dock door", "kind": "dock_door", "mobility": "fixed", "center": [13.9, 0.15], "size": [0.1, 2.4, 3.0], "yaw": 1.5707963267948966, "color": "grey", "blocks": true, "surfaces": []},
+    {
+      "id": "F05",
+      "name": "staging lane",
+      "kind": "staging_lane",
+      "mobility": "fixed",
+      "center": [4.5, 2.0],
+      "size": [2.8, 1.4, 0.005],
+      "yaw": 1.5707963267948966,
+      "color": "yellow",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S01", "kind": "staging lane", "rect": [0.0, 0.0, 2.7, 1.3], "z": 0.005}
+      ]
+    },
+    {
+      "id": "F06",
+      "name": "staging lane",
+      "kind": "staging_lane",
+      "mobility": "fixed",
+      "center": [7.1, 2.0],
+      "size": [2.8, 1.4, 0.005],
+      "yaw": 1.5707963267948966,
+      "color": "yellow",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S02", "kind": "staging lane", "rect": [0.0, 0.0, 2.7, 1.3], "z": 0.005}
+      ]
+    },
+    {
+      "id": "F07",
+      "name": "staging lane",
+      "kind": "staging_lane",
+      "mobility": "fixed",
+      "center": [10.5, 2.0],
+      "size": [2.8, 1.4, 0.005],
+      "yaw": 1.5707963267948966,
+      "color": "yellow",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S03", "kind": "staging lane", "rect": [0.0, 0.0, 2.7, 1.3], "z": 0.005}
+      ]
+    },
+    {
+      "id": "F08",
+      "name": "staging lane",
+      "kind": "staging_lane",
+      "mobility": "fixed",
+      "center": [12.9, 2.0],
+      "size": [2.8, 1.4, 0.005],
+      "yaw": 1.5707963267948966,
+      "color": "yellow",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S04", "kind": "staging lane", "rect": [0.0, 0.0, 2.7, 1.3], "z": 0.005}
+      ]
+    },
+    {
+      "id": "F09",
+      "name": "packing table",
+      "kind": "packing_table",
+      "mobility": "fixed",
+      "center": [17.1, 6.5],
+      "size": [0.8, 2.0, 0.9],
+      "yaw": 3.141592653589793,
+      "color": "steel",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S05", "kind": "work table", "rect": [0.0, 0.0, 0.74, 1.94], "z": 0.9}
+      ]
+    },
+    {
+      "id": "F10",
+      "name": "packing table",
+      "kind": "packing_table",
+      "mobility": "fixed",
+      "center": [17.1, 4.1],
+      "size": [0.8, 2.0, 0.9],
+      "yaw": 3.141592653589793,
+      "color": "steel",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S06", "kind": "work table", "rect": [0.0, 0.0, 0.74, 1.94], "z": 0.9}
+      ]
+    },
+    {
+      "id": "F11",
+      "name": "shelving unit",
+      "kind": "shelving",
+      "mobility": "fixed",
+      "center": [0.4, 6.4],
+      "size": [0.6, 2.0, 2.0],
+      "yaw": 0.0,
+      "color": "grey",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S07", "kind": "shelf", "rect": [0.0, 0.0, 0.54, 1.94], "z": 0.5},
+        {"id": "S08", "kind": "shelf", "rect": [0.0, 0.0, 0.54, 1.94], "z": 1.1},
+        {"id": "S09", "kind": "shelf", "rect": [0.0, 0.0, 0.54, 1.94], "z": 1.7}
+      ]
+    },
+    {
+      "id": "F12",
+      "name": "shelving unit",
+      "kind": "shelving",
+      "mobility": "fixed",
+      "center": [0.4, 4.2],
+      "size": [0.6, 2.0, 2.0],
+      "yaw": 0.0,
+      "color": "grey",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S10", "kind": "shelf", "rect": [0.0, 0.0, 0.54, 1.94], "z": 0.5},
+        {"id": "S11", "kind": "shelf", "rect": [0.0, 0.0, 0.54, 1.94], "z": 1.1},
+        {"id": "S12", "kind": "shelf", "rect": [0.0, 0.0, 0.54, 1.94], "z": 1.7}
+      ]
+    },
+    {
+      "id": "F13",
+      "name": "pallet rack",
+      "kind": "pallet_rack",
+      "mobility": "fixed",
+      "center": [0.65, 14.5],
+      "size": [1.1, 10.8, 3.9],
+      "yaw": 0.0,
+      "color": "blue",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S13", "kind": "rack", "rect": [0.0, -4.05, 1.08, 2.6], "z": 0.0},
+        {"id": "S14", "kind": "rack", "rect": [0.0, -4.05, 1.08, 2.6], "z": 2.6},
+        {"id": "S15", "kind": "rack", "rect": [0.0, -1.35, 1.08, 2.6], "z": 1.3},
+        {"id": "S16", "kind": "rack", "rect": [0.0, 1.35, 1.08, 2.6], "z": 0.0},
+        {"id": "S17", "kind": "rack", "rect": [0.0, 1.35, 1.08, 2.6], "z": 2.6},
+        {"id": "S18", "kind": "rack", "rect": [0.0, 4.05, 1.08, 2.6], "z": 1.3}
+      ]
+    },
+    {
+      "id": "F14",
+      "name": "pallet rack",
+      "kind": "pallet_rack",
+      "mobility": "fixed",
+      "center": [5.35, 14.5],
+      "size": [1.1, 10.8, 3.9],
+      "yaw": 3.141592653589793,
+      "color": "blue",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S19", "kind": "rack", "rect": [0.0, -4.05, 1.08, 2.6], "z": 0.0},
+        {"id": "S20", "kind": "rack", "rect": [0.0, -4.05, 1.08, 2.6], "z": 2.6},
+        {"id": "S21", "kind": "rack", "rect": [0.0, -1.35, 1.08, 2.6], "z": 1.3},
+        {"id": "S22", "kind": "rack", "rect": [0.0, 1.35, 1.08, 2.6], "z": 0.0},
+        {"id": "S23", "kind": "rack", "rect": [0.0, 1.35, 1.08, 2.6], "z": 2.6},
+        {"id": "S24", "kind": "rack", "rect": [0.0, 4.05, 1.08, 2.6], "z": 1.3}
+      ]
+    },
+    {
+      "id": "F15",
+      "name": "pallet rack",
+      "kind": "pallet_rack",
+      "mobility": "fixed",
+      "center": [6.45, 14.5],
+      "size": [1.1, 10.8, 3.9],
+      "yaw": 0.0,
+      "color": "blue",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S25", "kind": "rack", "rect": [0.0, -4.05, 1.08, 2.6], "z": 0.0},
+        {"id": "S26", "kind": "rack", "rect": [0.0, -4.05, 1.08, 2.6], "z": 2.6},
+        {"id": "S27", "kind": "rack", "rect": [0.0, -1.35, 1.08, 2.6], "z": 1.3},
+        {"id": "S28", "kind": "rack", "rect": [0.0, 1.35, 1.08, 2.6], "z": 0.0},
+        {"id": "S29", "kind": "rack", "rect": [0.0, 1.35, 1.08, 2.6], "z": 2.6},
+        {"id": "S30", "kind": "rack", "rect": [0.0, 4.05, 1.08, 2.6], "z": 1.3}
+      ]
+    },
+    {
+      "id": "F16",
+      "name": "pallet rack",
+      "kind": "pallet_rack",
+      "mobility": "fixed",
+      "center": [11.15, 14.5],
+      "size": [1.1, 10.8, 3.9],
+      "yaw": 3.141592653589793,
+      "color": "blue",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S31", "kind": "rack", "rect": [0.0, -4.05, 1.08, 2.6], "z": 0.0},
+        {"id": "S32", "kind": "rack", "rect": [0.0, -4.05, 1.08, 2.6], "z": 2.6},
+        {"id": "S33", "kind": "rack", "rect": [0.0, -1.35, 1.08, 2.6], "z": 1.3},
+        {"id": "S34", "kind": "rack", "rect": [0.0, 1.35, 1.08, 2.6], "z": 0.0},
+        {"id": "S35", "kind": "rack", "rect": [0.0, 1.35, 1.08, 2.6], "z": 2.6},
+        {"id": "S36", "kind": "rack", "rect": [0.0, 4.05, 1.08, 2.6], "z": 1.3}
+      ]
+    },
+    {
+      "id": "F17",
+      "name": "pallet rack",
+      "kind": "pallet_rack",
+      "mobility": "fixed",
+      "center": [12.25, 14.5],
+      "size": [1.1, 10.8, 3.9],
+      "yaw": 0.0,
+      "color": "blue",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S37", "kind": "rack", "rect": [0.0, -4.05, 1.08, 2.6], "z": 0.0},
+        {"id": "S38", "kind": "rack", "rect": [0.0, -4.05, 1.08, 2.6], "z": 2.6},
+        {"id": "S39", "kind": "rack", "rect": [0.0, -1.35, 1.08, 2.6], "z": 1.3},
+        {"id": "S40", "kind": "rack", "rect": [0.0, 1.35, 1.08, 2.6], "z": 0.0},
+        {"id": "S41", "kind": "rack", "rect": [0.0, 1.35, 1.08, 2.6], "z": 2.6},
+        {"id": "S42", "kind": "rack", "rect": [0.0, 4.05, 1.08, 2.6], "z": 1.3}
+      ]
+    },
+    {
+      "id": "F18",
+      "name": "pallet rack",
+      "kind": "pallet_rack",
+      "mobility": "fixed",
+      "center": [16.95, 14.5],
+      "size": [1.1, 10.8, 3.9],
+      "yaw": 3.141592653589793,
+      "color": "blue",
+      "blocks": true,
+      "surfaces": [
+        {"id": "S43", "kind": "rack", "rect": [0.0, -4.05, 1.08, 2.6], "z": 0.0},
+        {"id": "S44", "kind": "rack", "rect": [0.0, -4.05, 1.08, 2.6], "z": 2.6},
+        {"id": "S45", "kind": "rack", "rect": [0.0, -1.35, 1.08, 2.6], "z": 1.3},
+        {"id": "S46", "kind": "rack", "rect": [0.0, 1.35, 1.08, 2.6], "z": 0.0},
+        {"id": "S47", "kind": "rack", "rect": [0.0, 1.35, 1.08, 2.6], "z": 2.6},
+        {"id": "S48", "kind": "rack", "rect": [0.0, 4.05, 1.08, 2.6], "z": 1.3}
+      ]
+    },
+    {"id": "F19", "name": "charger", "kind": "charger", "mobility": "fixed", "center": [17.44, 1.4], "size": [0.12, 0.6, 0.3], "yaw": 3.141592653589793, "color": "black", "blocks": true, "surfaces": []},
+    {"id": "F20", "name": "bay", "kind": "bay", "mobility": "fixed", "center": [15.9, 6.5], "size": [1.6, 2.2, 0.005], "yaw": 3.141592653589793, "color": "yellow", "blocks": false, "surfaces": []},
+    {"id": "F21", "name": "bay", "kind": "bay", "mobility": "fixed", "center": [15.9, 4.1], "size": [1.6, 2.2, 0.005], "yaw": 3.141592653589793, "color": "yellow", "blocks": false, "surfaces": []},
+    {"id": "F22", "name": "bay", "kind": "bay", "mobility": "fixed", "center": [1.5, 6.4], "size": [1.6, 2.2, 0.005], "yaw": 0.0, "color": "yellow", "blocks": false, "surfaces": []},
+    {"id": "F23", "name": "bay", "kind": "bay", "mobility": "fixed", "center": [1.5, 4.2], "size": [1.6, 2.2, 0.005], "yaw": 0.0, "color": "yellow", "blocks": false, "surfaces": []},
+    {"id": "L01", "name": "pallet jack", "kind": "pallet_jack", "mobility": "light", "center": [8.3, 1.9], "size": [1.55, 0.55, 1.2], "yaw": 1.5707963267948966, "color": "red", "blocks": true, "surfaces": []},
+    {"id": "L02", "name": "pallet jack", "kind": "pallet_jack", "mobility": "light", "center": [9.3, 1.9], "size": [1.55, 0.55, 1.2], "yaw": 1.5707963267948966, "color": "yellow", "blocks": true, "surfaces": []},
+    {"id": "L03", "name": "roll cage", "kind": "roll_cage", "mobility": "light", "center": [11.7, 1.3], "size": [0.8, 0.7, 1.7], "yaw": 3.141592653589793, "color": "grey", "blocks": true, "surfaces": []}
+  ],
+  "ceiling_lights": [
+    {"region": "R1", "pos": [3.0, 4.6, 5.8], "watts": 270.0},
+    {"region": "R1", "pos": [8.8, 4.6, 5.8], "watts": 270.0},
+    {"region": "R1", "pos": [14.6, 4.6, 5.8], "watts": 270.0},
+    {"region": "R2", "pos": [3.0, 12.0, 5.8], "watts": 270.0},
+    {"region": "R2", "pos": [3.0, 17.0, 5.8], "watts": 270.0},
+    {"region": "R3", "pos": [8.8, 12.0, 5.8], "watts": 270.0},
+    {"region": "R3", "pos": [8.8, 17.0, 5.8], "watts": 270.0},
+    {"region": "R4", "pos": [14.6, 12.0, 5.8], "watts": 270.0},
+    {"region": "R4", "pos": [14.6, 17.0, 5.8], "watts": 270.0}
+  ]
+}

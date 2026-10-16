@@ -1,0 +1,70 @@
+[project]
+name = "spatiotemporalbench"
+version = "0.11.0"
+description = "A benchmark of an agent's spatiotemporal perception and memory of a changing world it sees through a robot's sensors."
+readme = "README.md"
+requires-python = ">=3.12"
+# The code is MIT. render/ (GPL-3.0, it runs inside Blender) is not in the wheel; the dataset is CC BY 4.0.
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "the SpatiotemporalBench authors" }]
+keywords = ["benchmark", "robotics", "memory", "spatial-reasoning", "embodied-ai", "llm-agents"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = ["numpy>=2.0", "pillow>=10.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-xdist>=3.5", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/DanMcInerney/SpatiotemporalBench"
+Repository = "https://github.com/DanMcInerney/SpatiotemporalBench"
+Issues = "https://github.com/DanMcInerney/SpatiotemporalBench/issues"
+Dataset = "https://huggingface.co/datasets/DanMcInerney/spatiotemporalbench"
+
+[project.scripts]
+stbench = "stbench.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# The wheel is the package folder as it stands: the shim (copied into the sandbox), the map and the asset manifest
+# (`importlib.resources`), and the export's licence and dataset card (`release/`) ship because they sit inside it.
+# Nothing else is listed or excluded; tests/test_export_wheel.py guards that.
+[tool.hatch.build.targets.wheel]
+packages = ["src/stbench"]
+
+# The sdist is the MIT code with its docs and examples, and nothing else: no render/ (GPL-3.0, it imports bpy), no tools/
+# (release tooling), no data/, no worklogs, and no tests (they read render/ and the repository's own documents, so from
+# an sdist they would fail; CI runs them from the checkout). Without `only-include` hatch would pack every file git
+# tracks, over 300 of them. `docs/figures` (frames of the CC BY 4.0 dataset, which the README shows by an absolute URL)
+# is left out deliberately, so no dataset content rides along under the package's `MIT` metadata.
+[tool.hatch.build.targets.sdist]
+only-include = ["src", "docs", "examples", "README.md", "LICENSE", "CITATION.cff", "CHANGELOG.md"]
+exclude = ["**/__pycache__", "docs/figures"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# loadgroup: the `docker` tests share one xdist group (tests/conftest.py) and run one after the other in one worker.
+# --maxprocesses: `-n auto` starts at most 12 workers, so the host keeps CPUs free for Docker and its VM, whose timing
+# those tests measure (24 busy workers starved them: a fork overran its slot, a teardown ran late).
+addopts = "-ra --dist loadgroup --maxprocesses 12"
+markers = [
+    "blender: needs a Blender install; skipped when absent",
+    "docker: needs Docker and the sandbox image; skipped when absent",
+]
+
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

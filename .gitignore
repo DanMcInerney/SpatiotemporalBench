@@ -1,0 +1,71 @@
+# Python and tool caches
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+htmlcov/
+dist/
+build/
+uv.lock
+
+# Datasets, episodes and Blender backups (the dataset is published on Hugging Face, not in this repository)
+data/
+data-cal/
+data-m2/
+data-dev/
+episodes/
+*.blend1
+
+# Run and scratch outputs
+runs/
+scratch/
+*.log
+
+# Development records: the maintainers keep these locally (under dev/), not in the published repository
+/dev/
+/AGENTS.md
+/CLAUDE.md
+/HANDOFF.md
+/DECISIONS.md
+/FINDINGS.md
+/V0.md
+/research/
+/docs/plan-*.md
+/docs/redesign-recommendations.md
+/docs/design-robotics.md
+/docs/design-task-benchmark.md
+/docs/prior-art.md
+/docs/realism.md
+/VISION.md
+/PRIOR-ART.md
+/LANES*.md
+/briefs/
+FD-*.md
+*.patch
+check_report.pre-*.json
+check-answers/
+fast-cc/
+rows-*/
+/notes/
+
+# Development data roots, exports, pilots and lane worktrees, should one be made inside a checkout
+/dev-*/
+/export-*/
+/release-*/
+/pilot-*/
+/lookdev-*/
+/binding-*/
+/wt-*/
+*.done
+*-supply.md
+
+# Agent and editor sessions (Claude Code settings, worktrees and transcripts stay local)
+.claude/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
