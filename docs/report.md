@@ -904,18 +904,23 @@ built-in tool, no user setting, hook, CLAUDE.md or auto memory, no saved session
 carries anything between cases (`tools/codex_canary.py`) covers the Codex agent and was not run for 0.11.0, whose rows use
 Claude Code.
 
-**The leak check was not rerun at full size.** Does asking during the job change the end answers? The check runs one reference model
+**The leak check.** Does asking during the job change the end answers? The check runs one reference model
 over every short and medium case of the jobs that ask at their end (the helper, the vacuum and the AMR; the drone asks
 nothing at its end) with the during questions off (`stbench eval --during off`), against the same model's row with them
 on. Both arms stream the same frames in the same order, and nothing in a frame marks where a question falls: the arms
 differ in the during asks alone. `stbench pilot report --leak` reads d, the mean of (on - off) of the gate score over the
 end questions paired by case and question, with a bootstrap interval over scripts, against the margin 0.05 declared
-before the arms were read. It has not been run at full size since 0.9.0, whose reading used `gpt-6.1-sol` at medium effort, on
+before the arms were read. 0.9.0's reading used `gpt-6.1-sol` at medium effort, on
 0.9.0's questions: pooled d = +0.043, interval [-0.030, +0.118], inconclusive, with the vacuum's own reading above the
 margin (+0.178, interval [-0.037, +0.534]) ([history/report-0.9.0.md](history/report-0.9.0.md), section 6). 0.10.0 asks
-one and a half to five times as many questions during the job, so that reading does not carry over. A subset reading on 0.11.0's compile (`claude:sonnet`, during off against on, the 15 fast-tier cases with an end question) gives d +0.123 [-0.018, +0.347] over 33 pairs of 9 scripts: too thin to read.
-Its point estimate is over the margin on the AMR's `closest_person` and the vacuum's lists, on 6 and 5 pairs; a leak is
-not excluded.
+one and a half to five times as many questions during the job, so that reading does not carry over. On 0.11.0, read after the release, the leak check at full size on 0.11.0 (`claude:sonnet` at medium effort, during on against off, every short and
+medium case of the helper, the vacuum and the AMR) gives a pooled d of -0.007, interval [-0.092, +0.079], over 180
+answerable pairs of 44 scripts: inconclusive by the rule, since the upper bound is above the margin of 0.05, so the
+during questions ship and a leak above +0.079 is excluded.
+Each job's d is near zero: the AMR -0.010 [-0.180, +0.168] (68 pairs), the helper -0.005 [-0.101, +0.106] (80) and the
+vacuum -0.003 [-0.182, +0.207] (32). A subset reading before it, on 33 pairs, had put the AMR's `closest_person` at
++0.29; at full size it is +0.027 over 30 pairs. The abstention shift on the 21 pairs whose right answer is `unknown`
+is -0.095 [-0.477, +0.235].
 
 **The given-name check.** Do a question's words find its target? On 0.7.0's questions a reviewer was shown 180 targets, with
 only the question's words and the frame, and found 179, against a bar of 90% a place declared first
@@ -1004,8 +1009,8 @@ only the question's words and the frame, and found 179, against a bar of 90% a p
   nothing about other models, efforts or memory designs.
 - **42 of the 124 cases.** The rows cover 42 short and medium cases, the same as 0.10.0's (Section 4), about 11 to 20 a
   place, so their intervals are wide.
-- **The leak check was not rerun at full size** (Section 6). 0.9.0's inconclusive reading was on other questions, and a
-  subset reading on 0.11.0 (33 pairs) is too thin to read, so a leak is not excluded.
+- **The leak check is inconclusive** (Section 6): no leak is seen (pooled d -0.007 over 180 pairs), but one up to
+  +0.079 is not excluded.
 
 ## Reproducing the numbers
 
@@ -1023,7 +1028,7 @@ stbench eval distance runs/sonnet runs/all_unknown --data data
 stbench check --data data --verdict evidence --out check.json
 ```
 
-The leak check, last run at full size for 0.9.0, is one more run of one reference model, with the during questions off, over
+The leak check, run at full size on 0.11.0 after the release, is one more run of one reference model, with the during questions off, over
 the cases of the jobs that ask at their end, and the report that reads it:
 
 ```sh

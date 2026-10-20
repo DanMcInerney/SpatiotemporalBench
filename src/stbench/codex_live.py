@@ -7,6 +7,10 @@ not at its end. Nothing bounds the exec's length but the case: the runner watche
 with `kill` when a message's deadline passes (`codex_feed`). `wake` is called when the exec ends, so a waiting runner
 looks again.
 
+With a memory (`codex_memory`) the exec has that memory's server beside the tool server: its calls pass the check, and
+each one that completes is handed to `note` as a `memory_call` journal event (`codex_log.memory_call`) as Codex reports
+it, since the feed does not see them.
+
 The tool server it is given is the thin relay (`codex_mcp`): its configuration file holds the feed's address and key
 (`server`), nothing else, and lives with the exec's other temp files in a folder `close` removes. An exec that is over
 has a `result`, which raises the `CodexError` (or `ContextTooLong`) it ended in, the way `codex_exec.failure` names it,
@@ -25,7 +29,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .codex_exec import Codex, CodexError, Result, check_event, digest, failure, json_line
-from .codex_log import scrubbed
+from .codex_log import memory_call, scrubbed
 from .local_system import kill_tree
 from .safecopy import remove_tree
 
@@ -35,12 +39,16 @@ KILL_WAIT = 30.0  # seconds for a killed exec to be reaped
 class Live:
     """A running `codex exec`. `kind` is `start` or `resume` (of `thread`), `prompt` goes on stdin, `server` is the tool
     server's configuration (`Feed.server_config`), `wake` is called when the exec is over, `attempt` is 2 for the retry
-    of a transient failure. Raises CodexMissing/CodexError when the command cannot be started."""
+    of a transient failure. `memory` is a memory's MCP server, `(name, argv)` (`Codex.argv`; None, the reference agent,
+    has none) and `note` receives the journal event of each of its calls that completes. Raises CodexMissing/CodexError
+    when the command cannot be started."""
 
     def __init__(self, codex: Codex, *, kind: str, thread: str | None, prompt: str, server: dict,
-                 wake: Callable[[], None] | None = None, attempt: int = 1):
+                 wake: Callable[[], None] | None = None, attempt: int = 1,
+                 memory: tuple[str, list[str]] | None = None, note: Callable[[dict], None] | None = None):
         codex.prepare()
         self.kind, self.attempt, self.events = kind, attempt, []
+        self.memory, self._note = memory[0] if memory else None, note
         self.escaped: CodexError | None = None
         self.killed = False
         self.code: int | None = None
@@ -52,7 +60,7 @@ class Live:
             config.write_text(json.dumps(server), encoding="utf-8", newline="\n")
             empty.mkdir()
             cwd.mkdir()
-            self.argv = codex.argv(kind, thread, config, empty)
+            self.argv = codex.argv(kind, thread, config, empty, memory=memory)
             self._err = (self._work / "stderr.txt").open("wb")
             self.proc = codex.popen(self.argv, cwd, self._err)
         except BaseException:
@@ -80,11 +88,13 @@ class Live:
                     continue
                 self.events.append(scrubbed(event))  # an image block as its hash: a long case holds no frames in memory
                 try:
-                    check_event(event)
+                    check_event(event, self.memory)
                 except CodexError as error:
                     self.escaped = error
                     kill_tree(self.proc)
                     break
+                if self._note is not None and self._ours(event):
+                    self._note(memory_call(self.events[-1]))
             self.proc.wait()
         finally:
             self.code, self.ended = self.proc.returncode, time.monotonic()
@@ -93,6 +103,12 @@ class Live:
             self._done.set()
             if self._wake is not None:
                 self._wake()
+
+    def _ours(self, event: dict) -> bool:
+        """Whether `event` is the end of a tool call of the memory's server."""
+        item = event.get("item") or {}
+        return (event.get("type") == "item.completed" and item.get("type") == "mcp_tool_call"
+                and self.memory is not None and item.get("server") == self.memory)
 
     # -- while it runs ------------------------------------------------------------------------------------------
     def alive(self) -> bool:

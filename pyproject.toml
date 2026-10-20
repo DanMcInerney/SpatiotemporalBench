@@ -60,6 +60,7 @@ addopts = "-ra --dist loadgroup --maxprocesses 12"
 markers = [
     "blender: needs a Blender install; skipped when absent",
     "docker: needs Docker and the sandbox image; skipped when absent",
+    "slow: a module listed in tests/slow_modules.txt; CI's fast set leaves it out (tools/slow_tests.py)",
 ]
 
 [tool.ruff]

@@ -4,9 +4,12 @@ the harness lays it out.
 
 `Fake` holds the transport and the folder the fake keeps its threads and its record in. `Fake.plan` is the JSON of
 `codex_fake`'s per-exec changes. `Fake.execs` gives one dict an exec: what it was started with (`argv`, `prompt`,
-`history`, ...) and what it did (`calls`, the tool calls it made, each with the reply's `text`, `error`, `images` as
-the hash of each image block and `blocks`; `finished`, whether it reached the end of its turn). `pulled` is the replies
-to its `next_frame` calls.
+`instructions`, the text of its instructions file, `servers`, `history`, ...) and what it did (`calls`, the tool calls
+it made, each with the `server` it went to, the reply's `text`, `error`, `images` as the hash of each image block and
+`blocks`; `finished`, whether it reached the end of its turn). `pulled` is the replies to its `next_frame` calls.
+`memory` loads a memory SPEC (with `carry` when asked) over the two fake programs of a memory (`memory_fake_server`,
+`memory_fake_sense`), and a
+`Run` given it has the memory's guide in its transport's base instructions, as `cmd_codex` does.
 `Run` is a started `CodexSystem` on the fake (or on a `codex` of the test's own): a context manager that closes the
 system (a live exec is killed), with `batch` to write the files of a frame into its inbox and give back its step as the
 harness delivers it (`stream` to observe frames in order, `serve` to serve the frame that is held after the last).
@@ -29,12 +32,17 @@ from stbench.codex_exec import Codex, Result
 from stbench.codex_feed import Feed, Item
 from stbench.codex_live import Live
 from stbench.codex_log import Journal
+from stbench.codex_memory import Memory
+from stbench.codex_memory import load as load_memory
 from stbench.codex_system import CodexSystem, Settings
 from stbench.llm_render import END_MESSAGE
 from stbench.questionnaire import asked_ends
 from stbench.stream_protocol import CHANNELS, DEFAULT_CHANNEL
 
 FAKE = Path(__file__).with_name("codex_fake.py")
+MEMORY_SERVER = Path(__file__).with_name("memory_fake_server.py")
+MEMORY_SENSE = Path(__file__).with_name("memory_fake_sense.py")
+GUIDE = "Call claim for what you see.\n\nCall view before you answer."
 SESSION = "0123456789abcdef"
 CREDIT = {"match_m": 0.5, "clearance_m": 0.1, "reacquire_m": 0.5}  # test numbers: the vacuum's C, R = match_m
 CAMERA = {"width": 640, "height": 480, "hfov_deg": 80.0, "fx": 381.3, "fy": 381.3, "cx": 320.0, "cy": 240.0,
@@ -50,20 +58,20 @@ class Fake:
     """A `Codex` that runs `codex_fake.py`, with the folder it keeps its state in."""
 
     def __init__(self, tmp_path: Path, plan: dict | None = None, *, model: str = "fake-model",
-                 reasoning: str = "low"):
+                 reasoning: str = "low", guide: str | None = None, compact_at: int | None = None):
         self.home = tmp_path / "fake-codex"
         self.home.mkdir()
         self.plan_file = self.home / "plan.json"
         self.plan(plan or {})
         self.waits: list[float] = []
-        self.settings = {"model": model, "reasoning": reasoning}
+        self.settings = {"model": model, "reasoning": reasoning, "guide": guide, "compact_at": compact_at}
         self.codex = self.new()
 
     def new(self, **overrides) -> Codex:
         """Another transport on the same fake (a run makes its own, as it would the real command)."""
         found = {**self.settings, **overrides}
-        return Codex(found["model"], reasoning=found["reasoning"], command=[sys.executable, str(FAKE)],
-                     sleep=self.waits.append,
+        return Codex(found["model"], reasoning=found["reasoning"], guide=found["guide"], compact_at=found["compact_at"],
+                     command=[sys.executable, str(FAKE)], sleep=self.waits.append,
                      env={"FAKE_CODEX_DIR": str(self.home), "FAKE_CODEX_PLAN": str(self.plan_file)})
 
     def plan(self, plan: dict) -> None:
@@ -77,7 +85,7 @@ class Fake:
             log = self.home / f"calls-{record['n']}.jsonl"
             lines = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()] if log.exists() else []
             head = next((line for line in lines if "tools" in line), {})
-            record |= {"tools": head.get("tools", []), "config": head.get("config"),
+            record |= {"tools": head.get("tools", []), "config": head.get("config"), "others": head.get("others", {}),
                        "tool_timeout": head.get("tool_timeout"), "calls": [line for line in lines if "tool" in line],
                        "finished": any(line.get("finished") for line in lines)}
         return found
@@ -86,6 +94,20 @@ class Fake:
 def pulled(record: dict) -> list[dict]:
     """The calls of `next_frame` an exec made, in order."""
     return [call for call in record["calls"] if call["tool"] == "next_frame"]
+
+
+def memory(folder: Path, *, name: str = "mem", fault: str | None = None, sense: bool = True,
+           guide: str = GUIDE, carry: bool = False, instructions: str | None = None) -> Memory:
+    """A memory loaded from a SPEC written under `folder`: its server `memory_fake_server.py` over the store (sending
+    `instructions` as its `initialize` reply's, when given), its sensor feed `memory_fake_sense.py` over the store (with
+    `fault`, `KIND:N`, when given; none with `sense` false) and `guide` as its prompt file; `carry` is the SPEC's."""
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "guide.md").write_text(guide, encoding="utf-8")
+    served = [sys.executable, str(MEMORY_SERVER), "{store}", *([instructions] if instructions else [])]
+    spec = {"name": name, "serve": served, "prompt": "guide.md", **({"carry": True} if carry else {}),
+            **({"sense": [sys.executable, str(MEMORY_SENSE), "{store}", *([fault] if fault else [])]} if sense else {})}
+    (folder / "memory.json").write_text(json.dumps(spec), encoding="utf-8")
+    return load_memory(folder / "memory.json")
 
 
 def job_also_asks(monkeypatch, *families: str) -> None:
@@ -136,7 +158,8 @@ class Run:
 
     def __init__(self, tmp_path: Path, plan: dict | None = None, *, codex=None, settings: Settings | None = None,
                  channel: str = DEFAULT_CHANNEL, robot: dict = ROBOT, **opts):
-        self.fake = Fake(tmp_path, plan) if codex is None else None
+        held = opts.get("memory")
+        self.fake = Fake(tmp_path, plan, guide=held.guide if held else None) if codex is None else None
         self.work, self.state = tmp_path / "work", tmp_path / "state"
         (self.work / "public").mkdir(parents=True)
         (self.work / "public" / "camera.json").write_text(json.dumps(CAMERA), encoding="utf-8")

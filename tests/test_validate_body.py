@@ -8,7 +8,7 @@ from dataclasses import replace
 
 import pytest
 
-from builders import CHAIR, DOOR, TASK2_T, keyframe, minimal_timeline
+from builders import CHAIR, DOOR, TASK2_T, hand_job, keyframe, minimal_timeline
 from stbench.catalog import item_size
 from stbench.geometry import quat_z
 from stbench.mapspec import load_map, parse_map
@@ -256,8 +256,7 @@ def city_timeline(city, robot, base, *, base_z=None, mover=None, light=None):
         placements.append(Placement("E0002", 0.0, None, (base[0] + 0.5, base[1], 0.0), quat_z(0.0), None))
     return replace(
         minimal_timeline(),
-        episode=EpisodeInfo("downtown_a", 1, robot, f"{robot}/1" if robot == "vacuum" else f"{robot}/hand",
-                            "2026-03-02T08:00:00"),
+        episode=EpisodeInfo("downtown_a", 1, robot, hand_job(robot), "2026-03-02T08:00:00"),
         regions=[Region(x.id, x.name, x.kind, x.polygon, x.level, x.z0, x.z1) for x in city.regions],
         entities=entities, placements=placements, states=[],
         ego=Ego(kf, [Task(0, 0, 2, plan, ())], []))

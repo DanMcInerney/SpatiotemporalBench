@@ -337,11 +337,16 @@ def report_problems(data: Path) -> list[str]:
 
 
 def result_name(doc: dict) -> str:
-    """The name a results document ships under, from what it is (system, effort, channel, brief, during), so the same
-    row has the same name wherever its run folder was."""
+    """The name a results document ships under, from what it is (system, effort, memory, compaction limit, channel,
+    brief, during), so the same row has the same name wherever its run folder was, and a row with a memory or a
+    compaction limit never shares the name of the reference row of its model and effort."""
     parts = [cmd_run.safe_name(doc["system"])]
     if doc.get("reasoning"):
         parts.append(cmd_run.safe_name(doc["reasoning"]))
+    if doc.get("memory"):
+        parts.append("memory-" + cmd_run.safe_name(doc["memory"]))
+    if doc.get("compact_at") is not None:
+        parts.append(f"compact-{doc['compact_at']}")
     parts.append(doc["channel"])
     if doc["brief"] != "correct":
         parts.append(doc["brief"])

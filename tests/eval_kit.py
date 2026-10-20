@@ -126,7 +126,8 @@ def fake_agent(model: str, case: case_mod.CasePaths, args) -> CaseRun:
              else {"models": {"m1": TOKENS["m1"]}})
     log: list = []
     RUNS.append({"model": model, "case": case.id, "brief": args.brief, "during": args.during, "out": args.out,
-                 "reasoning": args.reasoning, "log": log})
+                 "reasoning": args.reasoning, "memory": getattr(args, "memory", None),
+                 "compact_at": getattr(args, "compact_at", None), "log": log})
     return run_case(lambda state, work: Reporting(state, work, log=log, usage=usage, fail=model == "stop"), case,
                     channel=args.channel, brief=args.brief, during=args.during == "on")
 

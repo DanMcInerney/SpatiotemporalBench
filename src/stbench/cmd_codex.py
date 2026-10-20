@@ -15,6 +15,22 @@ two files (`<name>.calls.jsonl`, `<name>.summary.json`) and its `CodexSystem` cl
 cannot start. Everything below is said of the Codex agent; the Claude Code agent's journal and summary are the same
 files under its own name, with `provider` and the CLI's version under `claude` (docs/claude.md).
 
+`args.memory` (absent or None for the reference agent) is the path of a memory SPEC (`codex_memory`): the agent then
+keeps that memory beside its context, on `rgb_pose` with the images only, and every message it is sent stays the
+reference agent's (its guide is in the base instructions). The journal's `run` event records the memory (its name,
+SPEC's argvs as loaded and the guide's text) and `codex.summary.json` names it, as `results.json` does (`memory`), so a
+row with a memory is never read as the reference agent's; the case's store is kept beside the other files as
+`<name>-store`. A SPEC that cannot be loaded is refused before anything is sent. Both CLI agents take a memory
+(`cmd_run.MEMORY_AGENTS`); the guide goes where the CLI keeps its instructions (Codex's base instructions, Claude Code's
+system prompt), and no message the model is sent changes.
+
+`args.compact_at` (absent or None for the reference agent) is a token count (`--compact-at TOKENS`): every exec of the
+case is run with it as Codex's `model_auto_compact_token_limit`, so the thread is compacted earlier than Codex's own
+limit (`codex_exec.Codex`; for Claude Code the same lever is its two auto-compaction variables, `claude_exec.Claude`).
+The journal's `run` event and `codex.summary.json` carry `compact_at` (null when not set), as `results.json` does when
+it is set, so a row with a limit is never read as the reference agent's. Both CLI agents take one
+(`cmd_run.COMPACT_AGENTS`).
+
 Before anything is sent, `run` refuses (`cmd_run.Refused`, exit 2) a channel the agent cannot read (it reads the
 camera images of `rgb_pose`, or the detections of `detections`), `text_only` on `detections` (which has no image to
 withhold), a `--out` that already holds a Codex journal (a Codex call cannot be replayed, so a run is never repeated
@@ -25,10 +41,10 @@ rules of those types and of the job's families only: `brief.asked_families`; suc
 job). It creates nothing before those checks pass.
 
 Beside the `answers.jsonl`, `rows.jsonl` and `summary.json` that `stbench run` writes, a run leaves in `--out`:
-- `codex.calls.jsonl`, the journal (`codex_log`): a `run` event (model, effort, Codex's version, the case, channel,
-  brief, the call bound and resume limit, the timeouts, the tools), the events of the case (`exec_started`, an item
-  `served` to the model, each `call` it made, `answer_outcome` and `exec_failed`) and one record per `codex exec`. It
-  holds the questions' text, so it never goes under the dataset;
+- `codex.calls.jsonl`, the journal (`codex_log`): a `run` event (model, effort, compaction limit, Codex's version, the
+  case, channel, brief, the call bound and resume limit, the timeouts, the tools), the events of the case
+  (`exec_started`, an item `served` to the model, each `call` it made, `answer_outcome` and `exec_failed`) and one
+  record per `codex exec`. It holds the questions' text, so it never goes under the dataset;
 - `codex.summary.json`, written even when the run fails: `llm_summary`'s counts of the journal (execs by kind, frames
   served, pulls, resumes, the per-frame latency, tokens with their cached share and whether the count is a lower bound,
   tool calls by name, retries, warnings, answers by outcome, failed execs by reason) beside the model, the effort,
@@ -66,9 +82,10 @@ from .brief import (
     list_hazards,
 )
 from .case import CasePaths
-from .cmd_run import Refused, RunInvalid
+from .cmd_run import Refused, RunInvalid, load_memory
 from .codex_exec import Codex, CodexError
 from .codex_log import Journal, read_log
+from .codex_memory import Memory
 from .codex_system import DEFAULTS, CodexSystem
 from .job_registry import JobSpec
 from .llm_scan import scan_log
@@ -106,9 +123,10 @@ CODEX = Agent("codex", "Codex", CodexSystem)
 JOURNAL, SUMMARY = CODEX.journal, CODEX.summary
 
 
-def make_codex(model: str, reasoning: str) -> Codex:
-    """The transport of a run: `codex` on PATH. The one seam to replace (tests give a `Codex` over the fake command)."""
-    return Codex(model, reasoning=reasoning)
+def make_codex(model: str, reasoning: str, guide: str | None = None, compact_at: int | None = None) -> Codex:
+    """The transport of a run: `codex` on PATH, with a memory's `guide` in its base instructions and a compaction limit
+    `compact_at` when the run has them. The one seam to replace (tests give a `Codex` over the fake command)."""
+    return Codex(model, reasoning=reasoning, guide=guide, compact_at=compact_at)
 
 
 def _text_only(args: argparse.Namespace) -> bool:
@@ -129,16 +147,25 @@ def refuse(agent: Agent, args: argparse.Namespace) -> None:
                       "be replayed, so choose another --out (or remove the folder)")
 
 
-def _transport(model: str, args: argparse.Namespace) -> tuple[Codex, str]:
-    """(the prepared transport, the effort). Refused as `refuse` says, and for a transport that cannot run."""
-    refuse(CODEX, args)
+def transport(agent: Agent, make, model: str, args: argparse.Namespace, memory: Memory | None = None):
+    """(the prepared transport `make` builds for `agent`, the effort), for either CLI agent. Refused as `refuse` says,
+    and for a transport that cannot run (`CodexMissing`: no CLI, a model or an effort it does not list, a limit it
+    cannot be given). A memory's `guide` and `args.compact_at` (absent or None: the CLI's own limit) go to `make`."""
+    refuse(agent, args)
     reasoning = args.reasoning or DEFAULT_REASONING
+    given = {**({"guide": memory.guide} if memory else {}),
+             **({"compact_at": args.compact_at} if getattr(args, "compact_at", None) is not None else {})}
     try:
-        codex = make_codex(model, reasoning)
-        codex.prepare()
-    except (CodexError, ValueError) as error:  # CodexMissing: no codex, an unlisted model, an effort it does not list
+        cli = make(model, reasoning, **given)
+        cli.prepare()
+    except (CodexError, ValueError) as error:
         raise Refused(str(error)) from None
-    return codex, reasoning
+    return cli, reasoning
+
+
+def _transport(model: str, args: argparse.Namespace, memory: Memory | None = None) -> tuple[Codex, str]:
+    """`transport` for Codex: a memory's guide goes into the base instructions, the limit into every exec's argv."""
+    return transport(CODEX, make_codex, model, args, memory)
 
 
 def run(model: str, case: CasePaths, args: argparse.Namespace) -> CaseRun:
@@ -147,9 +174,10 @@ def run(model: str, case: CasePaths, args: argparse.Namespace) -> CaseRun:
     (or None, for the default) and `timeout` (or None, for each message's own, `stream_protocol.TIMEOUTS`). Raises
     `Refused` before anything is sent or written, `RunInvalid` for a run that cannot be scored (its files are written to
     inspect), and what `run_case` raises for a case that does not fit its records."""
-    codex, reasoning = _transport(model, args)
+    memory = load_memory(args)
+    codex, reasoning = _transport(model, args, memory)
     try:
-        return drive(CODEX, model, case, args, codex, reasoning)
+        return drive(CODEX, model, case, args, codex, reasoning, memory)
     finally:
         codex.close()
 
@@ -169,10 +197,11 @@ def _kinds(job: JobSpec, case: CasePaths, during: bool) -> tuple[str, ...]:
     return kinds
 
 
-def drive(agent: Agent, model: str, case: CasePaths, args: argparse.Namespace, transport, reasoning: str) -> CaseRun:
+def drive(agent: Agent, model: str, case: CasePaths, args: argparse.Namespace, transport, reasoning: str,
+          memory: Memory | None = None) -> CaseRun:
     """Run `agent` (its `system` over `transport`, the prepared `Codex` or `Claude`) on `case` with the model's id
-    `model` and `reasoning`, and write its journal and summary. `run` and `cmd_claude.run` call it; what they raise,
-    this does."""
+    `model` and `reasoning`, and write its journal and summary. `memory` (the Codex agent's, from `--memory`) is kept
+    beside the agent's context. `run` and `cmd_claude.run` call it; what they raise, this does."""
     job = job_registry.get(load(case.script.timeline).episode.job)
     kinds = _kinds(job, case, args.during == "on")
     job_asks = asks_during(job)  # the job's (its decisions and looks), not the arm's
@@ -180,29 +209,32 @@ def drive(agent: Agent, model: str, case: CasePaths, args: argparse.Namespace, t
     journal = Journal(args.out / agent.journal, provider=agent.name)
     timeouts = timeouts_of(args.timeout) if args.timeout else dict(TIMEOUTS)
     journal.note({"event": "run", "model": model, "reasoning": reasoning, "provider": agent.name,
+                  **({"compact_at": transport.compact_at} if hasattr(transport, "compact_at") else {}),
                   agent.name: transport.version, "case": case.id, "channel": args.channel, "text_only": text_only,
                   "brief": args.brief, "during": args.during == "on",
                   "settings": dataclasses.asdict(DEFAULTS), "timeouts": timeouts,
-                  "tools": [t["function"]["name"] for t in TOOLS]})
+                  "tools": [t["function"]["name"] for t in TOOLS],
+                  **({"memory": memory.record()} if memory else {})})
     began = time.monotonic()
     try:
+        kept = {"memory": memory, "keep": args.out / f"{memory.name}-store"} if memory else {}
         run = run_case(lambda state, work: agent.system(state, work, codex=transport, journal=journal,
                                                         timeouts=timeouts, asks_during=job_asks, asks_end=asks_end(job),
                                                         match_m=job.match_m, clearance_m=job.clearance_m,
                                                         reacquire_m=job.reacquire_m, lists=asks_lists(job),
                                                         headings=asks_headings(job), hazards=list_hazards(job),
                                                         kinds=kinds, families=asked_families(job),
-                                                        turns=asks_turns(job), text_only=text_only),
+                                                        turns=asks_turns(job), text_only=text_only, **kept),
                        case, channel=args.channel, brief=args.brief, during=args.during == "on")
     except BaseException as error:
         _unran(journal)
         if journal.path.exists():  # something ran: the summary says what stopped the run
             with contextlib.suppress(Exception):
                 _summarise(agent, model, case, args, transport, reasoning, journal, None, time.monotonic() - began,
-                           f"error: {type(error).__name__}: {error}")
+                           f"error: {type(error).__name__}: {error}", memory)
         raise
     summary = _summarise(agent, model, case, args, transport, reasoning, journal, run, time.monotonic() - began,
-                         run.status)
+                         run.status, memory)
     if not summary["invalid"]:  # an invalid run keeps its journal: `exec_failed` names the tool that escaped
         _unran(journal)
     for line in format_summary(summary):
@@ -224,7 +256,7 @@ def _unran(journal: Journal) -> None:
 
 
 def _summarise(agent: Agent, model: str, case: CasePaths, args: argparse.Namespace, transport, reasoning: str,
-               journal: Journal, run: CaseRun | None, wall_s: float, status: str) -> dict:
+               journal: Journal, run: CaseRun | None, wall_s: float, status: str, memory: Memory | None = None) -> dict:
     """Write the agent's summary file (`codex.summary.json`) from the journal and the run (None when `run_case` raised)
     and return it."""
     questions = suite.read_jsonl(case.questions)
@@ -236,6 +268,10 @@ def _summarise(agent: Agent, model: str, case: CasePaths, args: argparse.Namespa
         status=status,
         failures=run.failures if run else {}, wall_s=run.wall_s if run else {}, run_s=round(wall_s, 1), scan=hits)
     summary["text_only"] = _text_only(args)  # the stamp: a text-only run is never read as a camera one
+    if hasattr(transport, "compact_at"):   # likewise a run with a compaction limit (null: Codex's own)
+        summary["compact_at"] = transport.compact_at
+    if memory is not None:
+        summary["memory"] = memory.name  # likewise a run with a memory is never read as the reference agent's
     if agent.cost_note:   # the CLI's own dollars, as the turns carry them (the harness prices the tokens itself)
         turns = read_log(journal.path) if journal.path.exists() else []
         summary |= {"cost_usd": round(sum(r["cost"] for r in turns if "event" not in r), 6),

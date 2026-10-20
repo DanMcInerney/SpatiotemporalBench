@@ -6,12 +6,12 @@
 
 Each R, ON, OFF, BASE and OTHER is a results document or the run folder holding one. The report is ASCII markdown,
 a function of those documents alone (bootstrap seeds are fixed), with a section for each option given:
-- `--runs`: the pilot rows, each during on with the correct brief. Per agent (system and reasoning effort) and job: the
-  scripts, the cases and questions a case by length, sigma (the SD of the reported score over questions, and per
-  family), the design effect and rho (the Kish ICC) once there are 10 scripts, the headline (the mean of the `now` and
-  `memory` columns, which count equally, each the equal mean of its abilities, with the diagnostic pairs the documents
-  record left out) and its interval with those columns, how the cases ended, and per case-run by
-  length the tokens, wall time and notional dollars;
+- `--runs`: the pilot rows, each during on with the correct brief. Per agent (system, memory, compaction limit and
+  reasoning effort) and job: the scripts, the cases and questions a case by length, sigma (the SD of the reported score
+  over questions, and per family), the design effect and rho (the Kish ICC) once there are 10 scripts, the headline
+  (the mean of the `now` and `memory` columns, which count equally, each the equal mean of its abilities, with the
+  diagnostic pairs the documents record left out) and its interval with those columns, how the cases ended, and per
+  case-run by length the tokens, wall time and notional dollars;
 - `--leak ON OFF`: D2's check, in two readings (`pilot_leak`). A pair differs in `during` alone; d = on - off of the
   penalised score (`score_gate`, so no catastrophe weight enters the verdict) over the end questions, paired by (case,
   question), with the script bootstrap's 95% interval. The verdict (`power.leak_verdict`, per job and pooled) reads the
@@ -43,7 +43,7 @@ from .case import LENGTHS
 from .cell_weights import thin_from
 from .eval_compare import LEVER_GROUPS, load_all, same_compile
 from .eval_compare import Refused as CompareRefused
-from .eval_report import cell, count, interval, lever_name, rate, signed
+from .eval_report import cell, count, interval, lever_name, rate, signed, system_name
 from .eval_results import load
 from .score_stats import aggregate, paired_difference
 
@@ -73,7 +73,7 @@ class Group:
 
 
 def _agent(doc: dict) -> str:
-    return doc["system"] + (f" {doc['reasoning']}" if doc["reasoning"] else "")
+    return system_name(doc) + (f" {doc['reasoning']}" if doc["reasoning"] else "")
 
 
 def _load(path: str | Path) -> dict:
@@ -84,7 +84,7 @@ def _load(path: str | Path) -> dict:
 
 
 def _differs(a: dict, b: dict) -> list[str]:
-    return [group for group, keys in LEVER_GROUPS.items() if any(a[k] != b[k] for k in keys)]
+    return [group for group, keys in LEVER_GROUPS.items() if any(a.get(k) != b.get(k) for k in keys)]
 
 
 def _table(head: list[str], rows: list[list[str]]) -> list[str]:

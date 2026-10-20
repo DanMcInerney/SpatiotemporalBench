@@ -100,6 +100,19 @@ def sandbox_name(doc: dict) -> str:
             "in-process": "in-process (the benchmark's own code)"}[doc["sandbox"]]
 
 
+def _tokens(count: int) -> str:
+    """A token count as the reports write it: `50k` for a round thousand, else the number."""
+    return f"{count // 1000}k" if count % 1000 == 0 else str(count)
+
+
+def system_name(doc: dict) -> str:
+    """The system of a results document as the reports name it: `codex:<model>`, `with memory <name>` when the agent
+    kept one and `compacts at 50k tokens` when Codex compacted its thread at a limit of its own (`memory` and
+    `compact_at`, absent from a reference row)."""
+    name = doc["system"] + (f" with memory {doc['memory']}" if doc.get("memory") else "")
+    return name if doc.get("compact_at") is None else f"{name}, compacts at {_tokens(doc['compact_at'])} tokens"
+
+
 def lever_name(doc: dict) -> str:
     """The run's options in a line: `rgb_pose channel, correct brief, during on`."""
     return (f"{doc['channel']} channel, {doc['brief']} brief, during {'on' if doc['during'] else 'off'}"
@@ -337,7 +350,7 @@ def render(doc: dict) -> str:
     """The `results.md` text of a validated results document (what `eval_results.load` returns)."""
     done = [c for c in doc["cases"] if c["status"] == "complete"]
     lines = [f"*** {note} ***" for note in doc["notes"]]
-    system = doc["system"]
+    system = system_name(doc)
     cost = "n/a" if doc["cost_usd"] is None else f"${doc['cost_usd']:.4f}"
     lines += [f"# SpatiotemporalBench results: {system}", "", f"- system: {system}", f"- {lever_name(doc)}",
               f"- sandbox: {sandbox_name(doc)}", f"- verified: {'yes' if doc['verified'] else 'NO'}"]

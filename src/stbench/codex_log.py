@@ -12,15 +12,26 @@
   went in the first prompt, else absent), `at` (the harness's monotonic clock) and `time` (the wall clock). A frame
   that came with questions is one `frame` item that also has `ask` (the questions' `when`, `now_k` and `labels`) and
   `asked`, their text: `text` and `images` are the frame's, and the message the model held was the frame's text, its
-  image, then `asked`;
+  image, then `asked`; with a memory that carries (`codex_memory`) the item also has `memory_reply`, the text of the
+  memory's reply to the record the pull that got it carried (`"<name>: <compact JSON>"`), which is the last text block
+  of the message the model held, after `asked`, while `text` stays the item's own;
 - `call`: one tool call the model made: `tool`, `arguments`, `result` (the reply's text, the images as their hash;
   absent for a `next_frame` that was served an item, whose `item` is its number), `error`, `premature` (a `next_frame`
-  made while questions were unanswered), `at` and `time` (when it arrived);
+  made while questions were unanswered), `at` and `time` (when it arrived); for a `next_frame` that carried a record
+  (`arguments.memory`) also `memory_reply`, the memory's reply object. A record that was not carried is a
+  `memory_dropped` event (`reason`: `end` for a pull after the end item, which is also a `call`, or `abandoned` for a
+  pull whose exec ended while its record was carried, which is no call and has the `memory_reply` nobody read);
+- `memory_call`: one completed tool call the model made of a memory's server (`codex_memory`; those of the tool server
+  are `call`s): `server`, `tool`, `arguments`, `result` (the reply's text), `images` (each as its hash), `error`, `at`
+  and `time` (when the harness read it, in the order of the other events). The feed does not see these calls, so the
+  journal takes them from Codex's events as they arrive (`codex_live`); `memory_failed` is the memory's sensor feed
+  failing (`message`, the stream message it failed on, and `error`);
 - `answer_outcome` and `exec_failed` (`codex_system`).
 
 An exec record has no `event` key; it is written when an exec ends, whether it completed or was killed by the harness:
 `i`, `t`, `session`, `kind`, `base`, `thread` (the thread it ended in), `messages` (the model's replies), `events`
-(Codex's JSON lines as printed, any image block as its hash), `argv`, `stderr`, `warnings`, `attempts`, `usage` (what
+(Codex's JSON lines as printed, any image block as its hash, a memory's calls and results among them), `argv`,
+`stderr`, `warnings`, `attempts`, `usage` (what
 this exec used: prompt, completion, cached, cache write and reasoning tokens, and a cost of 0), `thread_usage` (the
 running total of its thread as Codex printed it), `cost` (0.0 for Codex: the plan, not dollars; for Claude Code the
 API-equivalent dollars the exec added, from the CLI's own running `total_cost_usd`), `provider` (`codex` or `claude`),
@@ -35,7 +46,10 @@ order they were written (the first prompt, each item served as a tool message, t
 resume lines and, at the end of an exec, its own words) and gives each ask the conversation as the model held it then,
 in the shape `llm_scan` reads. Codex's own compaction may shorten what the model holds; the transcript keeps everything
 it was ever shown, so a leak the model has since forgotten is still found. The journal has several writers (the
-runner's thread and the feed's), so a line is written under a lock.
+runner's thread, the feed's and the exec reader's), so a line is written under a lock. A memory's tool results are tool
+messages of the transcript too, in the order they were read, so the scan reads what the memory showed the model as it
+reads what the feed served; so is the reply a carried record got, the last text block of the item that pull was
+served.
 """
 
 from __future__ import annotations
@@ -120,7 +134,7 @@ class Journal:
     def note(self, event: dict) -> None:
         if "event" not in event:
             raise ValueError("a log event needs an 'event' key")
-        self._append(event, event["event"] == "call")
+        self._append(event, event["event"] in ("call", "memory_call"))
 
     def exec(self, *, session: str, kind: str, base: str | None, result) -> dict:
         """Append the record of an ended exec (`result` is a `codex_live.Live`'s `codex_exec.Result`, or a turn of
@@ -139,6 +153,27 @@ class Journal:
         self._append(record, spend=True)
         self.execs += 1
         return used
+
+
+def memory_event(server: str, tool: str, arguments, text: str, images: list[str], error: bool) -> dict:
+    """The `memory_call` journal event of one completed call of a memory's tool, however the CLI reported it: `text` is
+    the reply's text blocks joined (or the error), `images` the hashes of its image blocks (`scrubbed`)."""
+    return {"event": "memory_call", "server": server, "tool": str(tool)[:60], "arguments": arguments,
+            "error": bool(error), "result": text, "images": images,
+            "at": round(time.monotonic(), 6), "time": round(time.time(), 6)}
+
+
+def memory_call(event: dict) -> dict:
+    """The `memory_call` journal event of `event`, a completed tool call of a memory's server as Codex's `Live` read
+    it (already scrubbed: an image block has `hash` in place of its data). Claude Code's are `claude_exec`'s."""
+    item = event["item"]
+    blocks = [b for b in (item.get("result") or {}).get("content") or [] if isinstance(b, dict)]
+    error = item.get("error") or item.get("status") == "failed"
+    text = "\n".join(b["text"] for b in blocks if isinstance(b.get("text"), str))
+    return memory_event(item.get("server"), item.get("tool"), item.get("arguments"),
+                        text or (json.dumps(item.get("error")) if item.get("error") else ""),
+                        [b["hash"] for b in blocks if b.get("type") == "image" and isinstance(b.get("hash"), str)],
+                        error)
 
 
 def _tool(content) -> dict:
@@ -165,12 +200,16 @@ def transcripts(records: list[dict]) -> list[dict]:
             if r.get("via") != "prompt":  # the first task is in the first prompt
                 images = [{"type": "image_url", "image_url": {"url": h, "detail": "high"}} for h in r["images"]]
                 asked = [{"type": "text", "text": r["asked"]}] if r.get("asked") else []
-                held.append(_tool([{"type": "text", "text": r["text"]}, *images, *asked]))
+                carried = [{"type": "text", "text": r["memory_reply"]}] if r.get("memory_reply") else []
+                held.append(_tool([{"type": "text", "text": r["text"]}, *images, *asked, *carried]))
             if r.get("ask"):  # an ask alone, or the questions that came with a frame
                 found.append({"i": r["item"], "purpose": "ask", "ask": r["ask"],
                               "request": {"messages": list(held)}})
         elif event == "call" and "result" in r:
             held.append(_tool(str(r["result"])))
+        elif event == "memory_call":  # what the memory showed the model: the harness's words, as an item served is
+            images = [{"type": "image_url", "image_url": {"url": h, "detail": "high"}} for h in r["images"]]
+            held.append(_tool([{"type": "text", "text": r["result"]}, *images]))
         elif event is None:  # an exec record: the model's own words close it
             held += [{"role": "assistant", "content": m} for m in r["messages"]]
     return [*found, {"i": items, "purpose": "case", "request": {"messages": held}}]

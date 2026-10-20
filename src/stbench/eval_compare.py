@@ -21,8 +21,10 @@ so): D2 covers end answers only.
 Refused (exit 2, saying why), before anything is printed: a document that is not a results document; a case two
 results scored on different compiles (qids are random per compile, so two compiles share no question: `same_compile`);
 a result sharing no case with the first; and results that differ in more than one lever group, `agent` (system and
-reasoning), `channel`, `brief`, `during` or `text_only` (VISION rule 13: one axis at a time), so a difference is the
-effect of one thing.
+reasoning and the memory and compaction limit it ran with), `channel`, `brief`, `during` or `text_only` (VISION rule
+13: one axis at a time), so a difference is the effect of one thing: a memory row and the reference row of the same
+model and effort differ in one lever, the agent, and so do two rows of one memory that differ in the compaction limit (a
+row with a limit is named `compacts at N tokens` and never stands in for one without).
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ from pathlib import Path
 
 from . import ability_counts
 from .cell_weights import Thin, thin_from
-from .eval_report import HEADLINE_RULE, NOT_COMPARABLE, cell, interval, lever_name, sandbox_name, signed
+from .eval_report import HEADLINE_RULE, NOT_COMPARABLE, cell, interval, lever_name, sandbox_name, signed, system_name
 from .eval_results import load
 from .records import SCOPES
 from .score_stats import aggregate, paired_difference
@@ -42,7 +44,7 @@ MARK = "*** {} ***"
 RELEVANCE_ROWS = (("answerable, critical", "critical"), ("answerable, situational", "situational"),
                   ("unknown", "unknown"))   # a line of the relevance table, and the `relevance` it reads
 MAX_RESULTS = len(string.ascii_uppercase)
-LEVER_GROUPS = {"agent": ("system", "reasoning"), "channel": ("channel",), "brief": ("brief",),
+LEVER_GROUPS = {"agent": ("system", "reasoning", "memory", "compact_at"), "channel": ("channel",), "brief": ("brief",),
                 "during": ("during",), "text_only": ("text_only",)}
 
 
@@ -52,7 +54,7 @@ class Refused(ValueError):
 
 def _differing(a: dict, b: dict) -> list[str]:
     """The lever groups in which two results differ."""
-    return [group for group, keys in LEVER_GROUPS.items() if any(a[k] != b[k] for k in keys)]
+    return [group for group, keys in LEVER_GROUPS.items() if any(a.get(k) != b.get(k) for k in keys)]
 
 
 def same_compile(paths: list[str], docs: list[dict]) -> None:
@@ -223,7 +225,7 @@ def render(docs: list[dict], names: list[str], cells: dict | None = None) -> str
     lines = ["# SpatiotemporalBench: comparison", ""]
     lines += [MARK.format(f"{n}: {note}") for n, d in zip(names, docs, strict=True) for note in d["notes"]]
     lines += ["## Results", ""]
-    lines += [f"- {n} = {d['system']}, {lever_name(d)}, sandbox {sandbox_name(d)}, "
+    lines += [f"- {n} = {system_name(d)}, {lever_name(d)}, sandbox {sandbox_name(d)}, "
               f"{sum(c['status'] == 'complete' for c in d['cases'])} of {len(d['cases'])} cases finished"
               for n, d in zip(names, docs, strict=True)] + [""]
     lines += [f"Differences are each column minus {names[0]}, over the questions both answered, paired by (case, "

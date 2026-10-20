@@ -6,7 +6,10 @@ The reference agent's tools are `next_frame` and `submit_answer`, on every chann
 feed (what comes next: a task message, one frame, the questions of an ask, or word that the job is over), as
 `submit_answer` is the answer channel; neither helps with the task. The agent remembers with its own context, so it is
 offered no memory tool, and it estimates positions from what it is sent, so it is offered no pointing tool (DECISIONS,
-2026-10-10; `llm_memory` and `llm_locate` stay as modules and nothing offers them). A submission is parsed by
+2026-10-10; `llm_memory` and `llm_locate` stay as modules and nothing offers them). One option changes the list: a
+memory arm that carries (`codex_memory`, SPEC key `carry`) is offered `tools(True)`, whose `next_frame` also takes an
+optional `memory` argument, a record for the memory the harness hands over (`codex_feed`); every other arm is offered
+`TOOLS`, byte for byte as before. A submission is parsed by
 `answers.parse_answer`, never by a model. A system asked several questions at once (an ask) labels them Q1..Qn, and
 `submit_answer` names the question it answers by that label."""
 
@@ -37,6 +40,16 @@ ALREADY = "error: the answer was already submitted"
 GAVE_UP = "error: the answer was rejected twice; the question is over"
 NUDGE = "Call submit_answer now; use unknown if you cannot know."
 TOOLS = (NEXT, SUBMIT)  # the reference agent's tools, in every exec of every channel
+MEMORY = {"type": "object", "description": (
+    "Your memory record about the frame you were just shown, as the memory's claim takes it ({photo, record, "
+    "request_id}), instead of a claim call; the memory's reply comes at the end of the next item.")}
+NEXT_CARRY = {"type": "function", "function": {**NEXT["function"], "parameters": {
+    "type": "object", "properties": {"memory": MEMORY}}}}  # `next_frame` of an arm whose memory carries its record
+
+
+def tools(carry: bool) -> tuple:
+    """The tools of an exec: `TOOLS`, or with `carry` the same two whose `next_frame` takes the optional `memory`."""
+    return (NEXT_CARRY, SUBMIT) if carry else TOOLS
 
 
 def unanswered(labels: list[str]) -> str:

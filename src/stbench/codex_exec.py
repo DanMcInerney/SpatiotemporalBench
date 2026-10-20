@@ -14,13 +14,18 @@ every exec is launched the same way (`Codex.argv`):
   image viewing, skills, goals, hooks and the other features that reach files or the web, and `web_search=disabled`;
 - the instruction messages Codex adds (skills, permissions, environment with the working directory, collaboration
   mode, apps) switched off, and `model_instructions_file`, a one-line base instruction in place of Codex's
-  coding-agent prompt (the reference agent's prompt is its first message, as its system prompt);
-- Codex's own automatic compaction left at its default: the agent manages its own context, as it would in use;
+  coding-agent prompt (the reference agent's prompt is its first message, as its system prompt; a memory's guide is the
+  base instructions' second paragraph, never part of a message);
+- Codex's own automatic compaction left at its default: the agent manages its own context, as it would in use. A run
+  that asks for it (`compact_at`, `--compact-at TOKENS`) adds `model_auto_compact_token_limit` to every exec, start
+  and resume, so Codex compacts the thread earlier (a lever of the experiment, never the reference agent's);
 - a model catalog (the installed Codex's own, `codex debug models`, one entry patched, in a temp file) in which the
   model has `tool_mode` `direct` (the gpt-6 models are `code_mode_only`, which reaches MCP tools only through a
   JavaScript `exec` tool), no apply_patch, no experimental tools (the clock), no multi-agent and no tool search;
 - the tool server as the only MCP server, `required` (an exec that cannot start it fails), its calls pre-approved and a
-  tool timeout of `TOOL_TIMEOUT_S` (a pull is answered at once, so the timeout is never near);
+  tool timeout of `TOOL_TIMEOUT_S` (a pull is answered at once, so the timeout is never near); a run with a memory
+  (`codex_memory`, `--memory SPEC`) adds that memory's server, configured the same way, and appends the memory's guide
+  to the base instructions, and nothing else of the exec changes;
 - no personal instructions: Codex adds `AGENTS.md` (or `AGENTS.override.md`) of its home folder to every exec as a
   message, whatever the flags, so `prepare` refuses a home folder that holds a non-empty one (`PERSONAL`).
 
@@ -31,7 +36,8 @@ owner of the check): an item that is not a message, a thought or a call of the s
 change, a web search) is `ToolEscaped`, and the exec is an error, whatever its exit code says (`codex exec` exits 0
 after blocking a call). Codex's own two resource listers, which it reports as a server called `codex`, are the one
 exception (`HELPERS`). The live proof (a prompt that asks for a file by path, a directory listing, a shell command and a
-web page) is in FINDINGS; `tests/test_codex_*.py` pin the argv.
+web page) is in FINDINGS; `tests/test_codex_*.py` pin the argv. With a memory its server is a second one whose calls the
+check lets through (`check_event`, `memory`); a call of any other server is still `ToolEscaped`.
 
 A failure is named by its message: `CodexAuth` (log in again), `CodexLimit` (the plan's usage or rate limit),
 `ContextTooLong` (the window is full despite Codex's own compaction: the case ends and the reason is counted),
@@ -141,6 +147,15 @@ def toml(value: str | os.PathLike) -> str:
     return f"'{text}'"
 
 
+def server_settings(name: str, command: list[str], tool_timeout: float) -> list[str]:
+    """The `-c` settings of one MCP server: its command and arguments, required, its calls pre-approved, the tool
+    timeout."""
+    return [f"mcp_servers.{name}.command={toml(command[0])}",
+            f"mcp_servers.{name}.args=[{','.join(toml(a) for a in command[1:])}]",
+            *(f"mcp_servers.{name}.{c}" for c in SERVER_CONFIG),
+            f"mcp_servers.{name}.tool_timeout_sec={tool_timeout:g}"]
+
+
 def classify(message: str) -> type[CodexError] | type[ContextTooLong]:
     """The error class a failure message belongs to."""
     if CONTEXT.search(message):
@@ -188,11 +203,11 @@ def _usage(raw: dict) -> dict:
             "reasoning_tokens": raw.get("reasoning_output_tokens", 0), "cost": 0.0}
 
 
-def check_event(event: dict) -> None:
+def check_event(event: dict, memory: str | None = None) -> None:
     """Raise `ToolEscaped` for an event that holds an item that is not a message, a thought or a call of the tool
-    server (Codex's own resource listers aside), and `CodexError` for a call held for approval (the pre-approval did not
-    apply). Anything else is fine. The one owner of the check: every event of every exec is run through it as it
-    arrives."""
+    server or of the run's memory (`memory`, the name of its server; Codex's own resource listers aside), and
+    `CodexError` for a call held for approval (the pre-approval did not apply). Anything else is fine. The one owner of
+    the check: every event of every exec is run through it as it arrives."""
     if event.get("type") not in ("item.started", "item.completed", "item.updated"):
         return
     item = event.get("item") or {}
@@ -201,9 +216,9 @@ def check_event(event: dict) -> None:
         raise ToolEscaped(f"codex used {what!r}, which is not one of the tool server's tools: the restriction failed")
     if what != "mcp_tool_call" or item.get("tool") in HELPERS.get(item.get("server"), ()):
         return
-    if item.get("server") != SERVER:
+    if item.get("server") not in (SERVER, *([memory] if memory else [])):
         raise ToolEscaped(f"codex called the tool {item.get('tool')!r} of the server {item.get('server')!r}, not one "
-                          f"of {SERVER!r}")
+                          f"of {SERVER!r}" + (f" or the memory's {memory!r}" if memory else ""))
     if event["type"] == "item.completed" and "requires approval" in str((item.get("error") or {}).get("message", "")):
         raise CodexError("a tool call was held for approval: the pre-approval did not apply")
 
@@ -263,13 +278,19 @@ class Codex:
     """The `codex` command for one model. `command` is the executable and its leading arguments (default: `codex` on
     PATH, a `.cmd` shim resolved); `env` is added to the environment. `prepare` checks the command and writes the
     patched model catalog; `argv` is the command line of an exec and `popen` starts it; `close` removes the catalog (so
-    does dropping the object). Safe to share between threads."""
+    does dropping the object). Safe to share between threads. `guide` is a memory's guide (`codex_memory`), the text
+    that follows the one-line base instruction in the file Codex reads it from; None, the reference agent, leaves the
+    file as that line alone. `compact_at` is a number of tokens (`model_auto_compact_token_limit`) past which Codex
+    compacts the thread, passed to every exec; None, the reference agent, leaves Codex's own limit."""
 
     def __init__(self, model: str, *, reasoning: str = "low", command: list[str] | None = None,
-                 env: dict[str, str] | None = None, sleep: Callable[[float], None] = time.sleep):
+                 env: dict[str, str] | None = None, sleep: Callable[[float], None] = time.sleep,
+                 guide: str | None = None, compact_at: int | None = None):
         if reasoning not in EFFORTS:
             raise ValueError(f"reasoning must be one of {list(EFFORTS)}, got {reasoning!r}")
-        self.model, self.reasoning = model, reasoning
+        if compact_at is not None and not (type(compact_at) is int and compact_at >= 1):   # a bool is no count
+            raise ValueError(f"compact_at must be a whole number of tokens, at least 1, got {compact_at!r}")
+        self.model, self.reasoning, self.guide, self.compact_at = model, reasoning, guide, compact_at
         self.env, self._sleep, self._command, self._version = env or {}, sleep, command, None
         self._home: Path | None = None
         self._remove: Callable[[], object] | None = None
@@ -350,7 +371,8 @@ class Codex:
             self._remove = weakref.finalize(self, remove_tree, self._home)  # also when `close` is never called
             self.catalog, self.instructions = self._home / "models.json", self._home / "instructions.md"
             self.catalog.write_text(json.dumps({"models": models}), encoding="utf-8", newline="\n")
-            self.instructions.write_text(BASE_INSTRUCTIONS, encoding="utf-8", newline="\n")
+            text = BASE_INSTRUCTIONS if not self.guide else f"{BASE_INSTRUCTIONS}\n\n{self.guide}"
+            self.instructions.write_text(text, encoding="utf-8", newline="\n")
 
     def close(self) -> None:
         if self._home is not None:
@@ -363,9 +385,11 @@ class Codex:
 
     # -- one exec ---------------------------------------------------------------------------------------------------
     def argv(self, kind: str, thread: str | None, server_config: Path, empty: Path, *,
-             tool_timeout: float = TOOL_TIMEOUT_S) -> list[str]:
+             tool_timeout: float = TOOL_TIMEOUT_S, memory: tuple[str, list[str]] | None = None) -> list[str]:
         """The command line of an exec: `kind` is `start` or `resume` (which takes `thread`), `server_config` the tool
-        server's configuration file and `empty` an empty folder (a start's `-C`). The prompt is on stdin."""
+        server's configuration file and `empty` an empty folder (a start's `-C`). The prompt is on stdin. `memory` is a
+        memory's MCP server, `(name, argv)` (`codex_memory.Memory.server`), configured as the tool server is and with
+        the same timeouts; None (the reference agent) adds nothing."""
         if kind not in KINDS:
             raise ValueError(f"an exec is one of {list(KINDS)}, got {kind!r}")
         if (kind == "start") != (thread is None):
@@ -375,12 +399,12 @@ class Codex:
         args = [*self.command, "exec", *([] if kind == "start" else [kind]), "--json", "--skip-git-repo-check",
                 "--ignore-user-config", "--ignore-rules", "--strict-config", "-m", self.model]
         server = [sys.executable, "-m", "stbench.codex_mcp", str(server_config)]
-        settings = [*CONFIG, f"model_reasoning_effort={self.reasoning}", f"model_catalog_json={toml(self.catalog)}",
+        settings = [*CONFIG, f"model_reasoning_effort={self.reasoning}",
+                    *([] if self.compact_at is None else [f"model_auto_compact_token_limit={self.compact_at}"]),
+                    f"model_catalog_json={toml(self.catalog)}",
                     f"model_instructions_file={toml(self.instructions)}",
-                    f"mcp_servers.{SERVER}.command={toml(server[0])}",
-                    f"mcp_servers.{SERVER}.args=[{','.join(toml(a) for a in server[1:])}]",
-                    *(f"mcp_servers.{SERVER}.{c}" for c in SERVER_CONFIG),
-                    f"mcp_servers.{SERVER}.tool_timeout_sec={tool_timeout:g}"]
+                    *server_settings(SERVER, server, tool_timeout),
+                    *(server_settings(memory[0], memory[1], tool_timeout) if memory is not None else [])]
         for setting in settings:
             args += ["-c", setting]
         for feature in DISABLED:

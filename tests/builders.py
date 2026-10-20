@@ -27,6 +27,13 @@ def start_status(robot: str) -> dict[str, object]:
     return {key: v[1] if isinstance(v, tuple) else v for key, v in start.items() if key != "phase"}
 
 
+def hand_job(robot: str) -> str:
+    """The job a hand-built script of `robot` is stamped with: the vacuum's (its tests read `vacuum/1`'s rules) or,
+    for another robot, an unregistered hand job, so `validate` applies that robot's generic rules only and no written
+    job's checks or subgoals refuse a hand plan (the helper's name a thing and two pieces, the drone's an address)."""
+    return f"{robot}/1" if robot == "vacuum" else f"{robot}/hand"
+
+
 def keyframe(robot: str, k: int, t: float, base: tuple[float, float, float], yaw: float, *, task: int, phase: str,
              status: dict[str, object] | None = None, pitch: float | None = None) -> Keyframe:
     """A keyframe of `robot` with its base at `base` heading `yaw` (radians) and the camera at `pitch` (radians, the

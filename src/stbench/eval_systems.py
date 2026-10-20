@@ -25,6 +25,7 @@ from pathlib import Path
 from . import baselines, cmd_run, prices, suite, suite_priors
 from .case import CasePaths
 from .cmd_run import BASELINE, Refused, RunInvalid
+from .codex_memory import Memory
 from .safecopy import remove_tree
 from .stream import CaseRun
 from .stream_protocol import CHANNELS
@@ -65,6 +66,8 @@ class Config:
     max_usd: float | None
     case_usd: float | None
     text_only: bool = False        # an agent is sent no image (`--text-only`)
+    memory: Memory | None = None   # an agent keeps this memory beside its context (`--memory`)
+    compact_at: int | None = None  # Codex compacts an agent's thread past this many tokens (`--compact-at`)
     cells_from: Path | None = None  # the dataset whose cells (and weights) the scores use; None: `data` itself
 
     @property
@@ -75,7 +78,8 @@ class Config:
         """What `stbench run` hands a runner for one case of `arm` (`out`: the case's folder)."""
         return argparse.Namespace(system=self.system, channel=self.channel, brief=arm.brief,
                                   during="on" if arm.during else "off", local=self.local, timeout=self.timeout,
-                                  reasoning=self.reasoning, text_only=self.text_only, out=out)
+                                  reasoning=self.reasoning, text_only=self.text_only, out=out,
+                                  memory=str(self.memory.path) if self.memory else None, compact_at=self.compact_at)
 
 
 @dataclass(frozen=True)

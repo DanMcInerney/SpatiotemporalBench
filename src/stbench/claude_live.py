@@ -16,6 +16,11 @@ or is the `Result` of the turn; one the harness killed is a `Result` with `kille
 none, so its tokens are missing and a count that includes it is a lower bound). The tool server is the thin relay
 (`codex_mcp`), configured by a file holding the feed's address and key (`server`) and named in the `--mcp-config` file;
 both live with the process's other temp files in a folder `close` removes.
+
+With a memory (`codex_memory`) the process has that memory's server beside the tool server: its calls pass the check,
+and each one that completes is handed to `note` as a `memory_call` journal event (`claude_exec.memory_results`), paired
+from the `tool_use` of an `assistant` event and the `tool_result` of the `user` event that answers it, since the feed
+does not see them.
 """
 
 from __future__ import annotations
@@ -25,9 +30,10 @@ import json
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
-from .claude_exec import Claude, check_event, digest, failure
+from .claude_exec import Claude, check_event, digest, failure, memory_results, memory_uses
 from .codex_exec import CodexError, Result, json_line
 from .codex_log import scrubbed
 from .local_system import kill_tree
@@ -39,15 +45,20 @@ NOISE_LINES = 20  # the most non-JSON lines of a turn that are kept
 
 class ClaudeLive:
     """A running `claude -p`. `prompt` is the first user message, `system` the system prompt (`--system-prompt`),
-    `server` the tool server's configuration (`Feed.server_config`), `wake` is called when a turn is over. Raises
-    CodexMissing/CodexError when the command cannot be started. `kind` is the turn's (`start`, then `resume`); `attempt`
-    is always 1 (a failure is never retried: Claude Code retries a transient one itself)."""
+    `server` the tool server's configuration (`Feed.server_config`), `wake` is called when a turn is over. `memory` is
+    a memory's MCP server, `(name, argv)` (`Claude.argv`; None, the reference agent, has none) and `note` receives the
+    journal event of each of its calls that completes. Raises CodexMissing/CodexError when the command cannot be
+    started. `kind` is the turn's (`start`, then `resume`); `attempt` is always 1 (a failure is never retried: Claude
+    Code retries a transient one itself)."""
 
     attempt = 1
 
-    def __init__(self, claude: Claude, *, system: str, prompt: str, server: dict, wake=None):
+    def __init__(self, claude: Claude, *, system: str, prompt: str, server: dict, wake=None,
+                 memory: tuple[str, list[str]] | None = None, note: Callable[[dict], None] | None = None):
         claude.prepare()
         self.kind, self.events, self.noise = "start", [], []
+        self.memory, self._note = memory[0] if memory else None, note
+        self._calls: dict[str, tuple[str, object]] = {}   # the memory's calls started and not yet answered
         self.escaped: CodexError | None = None
         self.killed = False
         self.code: int | None = None
@@ -58,9 +69,9 @@ class ClaudeLive:
         try:
             config, mcp, cwd = self._work / "server.json", self._work / "mcp.json", self._work / "in"
             config.write_text(json.dumps(server), encoding="utf-8", newline="\n")
-            mcp.write_text(json.dumps(claude.mcp_config(config)), encoding="utf-8", newline="\n")
+            mcp.write_text(json.dumps(claude.mcp_config(config, memory)), encoding="utf-8", newline="\n")
             cwd.mkdir()
-            self.argv = claude.argv(mcp, system)
+            self.argv = claude.argv(mcp, system, memory=memory)
             self._err = (self._work / "stderr.txt").open("wb")
             self.proc = claude.popen(self.argv, cwd, self._err)
         except BaseException:
@@ -99,11 +110,13 @@ class ClaudeLive:
                 with self._lock:
                     self.events.append(scrubbed(event))   # an image block as its hash: a long case holds no frames
                 try:
-                    check_event(event)
+                    check_event(event, self.memory)
                 except CodexError as error:
                     self.escaped = error
                     kill_tree(self.proc)
                     break
+                if self._note is not None:
+                    self._journal(self.events[-1])
                 if event.get("type") == "result":
                     self._end_turn()
             self.proc.wait()
@@ -113,6 +126,12 @@ class ClaudeLive:
                 self._err.close()
             self._end_turn()
             self._exited.set()
+
+    def _journal(self, event: dict) -> None:
+        """The memory's calls `event` starts are remembered, and those it answers are noted, as they arrive."""
+        self._calls.update(memory_uses(event, self.memory))
+        for entry in memory_results(event, self.memory, self._calls):
+            self._note(entry)
 
     def _end_turn(self) -> None:
         self.ended = self.ended or time.monotonic()
@@ -160,7 +179,7 @@ class ClaudeLive:
             raise self.escaped
         with self._lock:
             events, noise = list(self.events), list(self.noise)
-        read = digest(events, noise)
+        read = digest(events, noise, self.memory)
         err = self._stderr()
         if not self.killed:
             if (found := failure(events, self.code, err)) is not None:

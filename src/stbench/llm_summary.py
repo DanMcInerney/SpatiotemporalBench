@@ -21,6 +21,9 @@ run's summary adds the CLI's API-equivalent dollars, `cmd_codex.drive`: `cost_us
 - An answer is `submitted`, `repaired` (a rejected try or the nudge came first) or `failed` with a reason (`malformed`,
   `no_submit`). `exec_failures` counts the execs that raised, by `codex_exec.failure_reason` (`stalled` and `timeout`
   among them), and `timed_out` counts the questions whose ask ended on a timeout.
+- A run with a memory (`codex_memory`) counts the memory's tool calls by name in `tool_calls` and `tool_errors`, beside
+  the tool server's (the journal's `memory_call` events), so the `claim` calls per frame are `tool_calls["claim"]` over
+  `frames`. A sensor feed that failed is `memory_failure`, its message cut: a key only such a run has.
 """
 
 from __future__ import annotations
@@ -67,6 +70,8 @@ def summarize(log: Path, **meta) -> dict:
     outcomes = [e for e in events if e["event"] == "answer_outcome"]
     broken = [e for e in events if e["event"] == "exec_failed"]
     calls = [e for e in events if e["event"] == "call"]
+    memory = [e for e in events if e["event"] == "memory_call"]
+    unfed = [e for e in events if e["event"] == "memory_failed"]
     failed = Counter(e.get("reason", "unspecified") for e in outcomes if e["outcome"] == "failed")
     pulls = [c for c in calls if c["tool"] == NEXT_NAME]
     return {
@@ -81,8 +86,8 @@ def summarize(log: Path, **meta) -> dict:
         "asked_latency": latency(events, asked=True),
         "tokens": {name: sum(r["usage"][key] for r in execs) for name, key in USAGE.items()},
         "tokens_lower_bound": bool(broken) or any(r["killed"] for r in execs),
-        "tool_calls": dict(Counter(c["tool"] for c in calls)),
-        "tool_errors": sum(bool(c["error"]) for c in calls),
+        "tool_calls": dict(Counter(c["tool"] for c in [*calls, *memory])),
+        "tool_errors": sum(bool(c["error"]) for c in [*calls, *memory]),
         "retries": sum(r["attempts"] - 1 for r in execs),
         "warnings": sum(len(r["warnings"]) for r in execs),
         "exec_wall_s": round(sum(r["latency_s"] for r in execs), 3),
@@ -95,6 +100,7 @@ def summarize(log: Path, **meta) -> dict:
         # the last failed exec's own message (cut), kept here because a run whose first exec failed spent nothing and
         # its journal is removed (`cmd_codex._unran`): without it an outage reads only "error" (FINDINGS 2026-10-14)
         "exec_failure_message": str(broken[-1].get("message") or "")[:MESSAGE_CHARS] if broken else None,
+        **({"memory_failure": str(unfed[-1].get("error") or "")[:MESSAGE_CHARS]} if unfed else {}),
     }
 
 
@@ -119,4 +125,5 @@ def format_summary(s: dict) -> list[str]:
         f"answers: {a['submitted']} submitted, {a['repaired']} repaired, {sum(a['failed'].values())} failed "
         f"{a['failed']}, {a['timed_out']} timed out; execs that failed: {s['exec_failures'] or 'none'}",
         *([f"last failed exec: {s['exec_failure_message']}"] if s.get("exec_failure_message") else []),
+        *([f"the memory's sensor feed failed: {s['memory_failure']}"] if s.get("memory_failure") else []),
     ]

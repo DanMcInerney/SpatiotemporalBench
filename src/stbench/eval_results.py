@@ -1,7 +1,8 @@
 """`results.json`, the record of an `eval` (docs/eval.md).
 
 One document a run folder (an arm of `--arms` is a run folder of its own): what was run (the system, the channel, the
-brief variant, the during flag, where it ran, the reasoning effort, the text-only flag), whether the result is
+brief variant, the during flag, where it ran, the reasoning effort, the text-only flag and, for an agent that kept
+one, the name of its memory and, for one whose thread Codex compacted early, the limit), whether the result is
 `verified` (the sandbox is Docker or the harness's own process, and no case used a remote store: D4) or `partial`,
 the cases with how each ended and what it spent (`wall_s` per message, `state_bytes`, `usage` as the system reported
 it, the problems of that report, its token totals, whether it names a remote store, and the cost in dollars by the
@@ -44,7 +45,7 @@ from .stream_protocol import CHANNELS, MODEL_TOKEN_KEYS, remote_memory, usage_pr
 
 RELAXED_NOTE = ("every ability is under 20 questions on its job in this dataset; the rule is not applied, so this "
                 "headline is not the release statistic")
-RESUME_KEYS = ("system", "channel", "brief", "during", "sandbox", "reasoning", "text_only")
+RESUME_KEYS = ("system", "channel", "brief", "during", "sandbox", "reasoning", "text_only", "memory", "compact_at")
 SANDBOXES = ("in-process", "docker", "none")
 RESULTS, SUMMARY, ROWS = "results.json", "summary.json", "rows.jsonl"
 MAX_FOUND = 10   # problems `problems` reports
@@ -102,8 +103,9 @@ AGGREGATE = {"n": int, "scripts": int, "cases": int, "headline": dict, "columns"
              "counts": {name: int for name in OUTCOMES}, "confidently_wrong_rate": dict, "abstention": dict,
              "job_age_band": May(dict), "catastrophe_rate": May(dict)}
 SCHEMA = {"system": str, "channel": tuple(CHANNELS), "brief": VARIANTS, "during": bool, "sandbox": SANDBOXES,
-          "reasoning": Opt(str), "text_only": bool, "verified": bool, "partial": bool, "max_usd": Opt(float),
-          "cost_usd": Opt(float), "cases": [CASE], "rows": [ROW], "layouts": Each(Opt(AGGREGATE)), "notes": [str]}
+          "reasoning": Opt(str), "text_only": bool, "memory": May(Opt(str)), "compact_at": May(Opt(int)),
+          "verified": bool, "partial": bool, "max_usd": Opt(float), "cost_usd": Opt(float), "cases": [CASE],
+          "rows": [ROW], "layouts": Each(Opt(AGGREGATE)), "notes": [str]}
 
 
 def _check(value, spec, where: str, found: list[str]) -> None:
@@ -213,7 +215,9 @@ def resources(usage: dict | None) -> dict:
 def stamp(cfg: Config, arm: Arm) -> dict:
     """What identifies a run folder, which a resume must find unchanged (`RESUME_KEYS`)."""
     return {"system": cfg.system, "channel": cfg.channel, "brief": arm.brief, "during": arm.during,
-            "sandbox": cfg.sandbox, "reasoning": cfg.reasoning, "text_only": cfg.text_only}
+            "sandbox": cfg.sandbox, "reasoning": cfg.reasoning, "text_only": cfg.text_only,
+            **({"memory": cfg.memory.name} if cfg.memory else {}),
+            **({"compact_at": cfg.compact_at} if cfg.compact_at is not None else {})}
 
 
 def check_resume(cfg: Config, arm: Arm, previous: dict | None) -> None:
@@ -222,8 +226,9 @@ def check_resume(cfg: Config, arm: Arm, previous: dict | None) -> None:
     if previous is None:
         return
     now = stamp(cfg, arm)
-    if differing := [k for k in RESUME_KEYS if previous[k] != now[k]]:
-        shown = ", ".join(f"{k}: there {previous[k]!r}, now {now[k]!r}" for k in differing)
+    # a reference row has neither `memory` nor `compact_at`
+    if differing := [k for k in RESUME_KEYS if previous.get(k) != now.get(k)]:
+        shown = ", ".join(f"{k}: there {previous.get(k)!r}, now {now.get(k)!r}" for k in differing)
         raise Mismatch(f"{arm.path} holds the results of a different run ({shown}); choose another --out")
     if changed := [c.id for c in cfg.cases if finished(arm, c.id)
                    and not {r["qid"] for r in _rows(arm, c.id)} <= gold_qids(c.gold)]:

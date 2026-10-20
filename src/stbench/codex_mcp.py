@@ -2,18 +2,19 @@
 
 `codex exec` is launched with this module as its only tool source (`python -m stbench.codex_mcp CONFIG.json`). It speaks
 JSON-RPC 2.0 over stdin and stdout, one message a line (`initialize`, `tools/list`, `tools/call`, `ping`), and offers
-exactly `agent_tools.TOOLS`: `next_frame` and `submit_answer`, on every channel. It decides nothing. Each `tools/call`
-is sent over `multiprocessing.connection` to the harness, which answers with the `content` (text blocks and image
-blocks) and `isError` of the reply; the relay returns them as they are, so the harness's image bytes come over the
-connection and the relay reaches no file. The agent has no memory tool and no pointing tool (it remembers with its own
-context). Nothing else is reachable through it. Codex puts the tools in a namespace (the model sees
-`mcp__stbench.next_frame`).
+exactly `agent_tools.TOOLS`: `next_frame` and `submit_answer`, on every channel (with `"carry": true` in CONFIG.json,
+`agent_tools.tools(True)`: the same two, and `next_frame` also takes the optional `memory` object). It decides
+nothing. Each `tools/call` is sent over `multiprocessing.connection` to the harness, which answers with the `content`
+(text blocks and image blocks) and `isError` of the reply; the relay returns them as they are, so the harness's image
+bytes come over the connection and the relay reaches no file. The agent has no memory tool and no pointing tool (it
+remembers with its own context). Nothing else is reachable through it. Codex puts the tools in a namespace (the model
+sees `mcp__stbench.next_frame`).
 
 A call of a tool that is not in the list is answered here with an error and never leaves the process. A relay that
 cannot reach the harness answers every call with an error text.
 
-CONFIG.json: `address` (host and port of the harness's listener) and `key` (hex), nothing else of the case. It is the
-one file the relay reads.
+CONFIG.json: `address` (host and port of the harness's listener) and `key` (hex), and `carry` (true) for a memory that
+carries its record in `next_frame`, nothing else of the case. It is the one file the relay reads.
 """
 
 from __future__ import annotations
@@ -23,16 +24,16 @@ import sys
 from multiprocessing.connection import Client
 from pathlib import Path
 
-from .agent_tools import TOOLS
+from .agent_tools import tools
 
 SERVER_NAME = "stbench"
 PROTOCOL = "2025-06-18"
 
 
-def tool_specs() -> list[dict]:
-    """The tools as MCP lists them (`name`, `description`, `inputSchema`)."""
+def tool_specs(carry: bool = False) -> list[dict]:
+    """The tools as MCP lists them (`name`, `description`, `inputSchema`); with `carry`, `next_frame` takes `memory`."""
     return [{"name": t["function"]["name"], "description": t["function"]["description"],
-             "inputSchema": t["function"]["parameters"]} for t in TOOLS]
+             "inputSchema": t["function"]["parameters"]} for t in tools(carry)]
 
 
 def _error(text: str) -> dict:
@@ -59,7 +60,7 @@ class Relay:
             return _error(f"error: the harness cannot be reached ({type(error).__name__})")
 
 
-def handle(message: dict, relay: Relay) -> dict | None:
+def handle(message: dict, relay: Relay, carry: bool = False) -> dict | None:
     """The reply to one JSON-RPC message, or None for a notification."""
     if not isinstance(message, dict) or "id" not in message:
         return None
@@ -74,10 +75,10 @@ def handle(message: dict, relay: Relay) -> dict | None:
     if method == "ping":
         return done({})
     if method == "tools/list":
-        return done({"tools": tool_specs()})
+        return done({"tools": tool_specs(carry)})
     if method == "tools/call":
         name = params.get("name")
-        if name not in {s["name"] for s in tool_specs()}:
+        if name not in {s["name"] for s in tool_specs(carry)}:
             return done(_error(f"error: unknown tool {str(name)[:60]!r}"))
         return done(relay.call(name, params.get("arguments") or {}))
     return {"jsonrpc": "2.0", "id": ident, "error": {"code": -32601, "message": f"method not found: {method}"}}
@@ -86,11 +87,12 @@ def handle(message: dict, relay: Relay) -> dict | None:
 def serve(config: dict, stdin=None, stdout=None) -> None:
     """Answer messages from `stdin` until it ends. A line that is not JSON is skipped."""
     stdin, stdout, relay = stdin or sys.stdin, stdout or sys.stdout, Relay(config)
+    carry = config.get("carry") is True
     for line in stdin:
         if not line.strip():
             continue
         try:
-            reply = handle(json.loads(line), relay)
+            reply = handle(json.loads(line), relay, carry)
         except ValueError:
             continue
         if reply is not None:

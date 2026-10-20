@@ -9,7 +9,8 @@ thing; `stbench eval distance` breaks a run's distance questions down against th
 ```sh
 uv run stbench eval SYSTEM --data D [--out RUNDIR] [--cases ID,...] [--select KEY=VALUE ...] [--channel C] [--brief V]
                    [--during on|off] [--arms LEVER=V1,V2[,...]] [--workers N] [--local] [--timeout S] [--reasoning E]
-                   [--text-only] [--cells-from DEVROOT] [--max-usd TOTAL --case-usd X]
+                   [--text-only] [--memory SPEC] [--compact-at TOKENS] [--cells-from DEVROOT]
+                   [--max-usd TOTAL --case-usd X]
 uv run stbench eval compare RESULTS_A RESULTS_B [...] [--out FILE.md] [--cells-from DEVROOT]
 uv run stbench eval distance RUN [REFERENCE_RUN ...] --data D [--out FILE.md] [--cells-from DEVROOT]
 ```
@@ -20,6 +21,25 @@ ends in `-text-only` (`runs/<system>-<channel>-text-only`; `stbench run`'s `runs
 `results.json` and `results.md` and the viewer's header say it, `summary.json` holds `text_only`, each row of
 `rows.jsonl` carries `"text_only": true` (a camera run's rows gain no key), a resume must find it unchanged, and `eval
 compare` takes it as a lever of its own, one at a time.
+
+`--memory SPEC` is for a Codex or Claude agent too: a memory store beside its context ([codex.md](codex.md), "A memory
+beside the reference agent"; [claude.md](claude.md), "A memory beside the agent"). It is refused (exit 2) for every other system, on the detections channel and with `--text-only`. A run
+with a memory cannot be taken for a reference one: its default folder ends in `-memory-<SPEC's stem>`, `results.json`
+holds `"memory": "<name>"` (a reference row has no such key), `results.md` and the viewer's header name the system
+`<system> with memory <name>`, a resume must find the same name, and `eval compare` takes the memory as part of the
+agent lever, with the system and the reasoning effort: a memory row and the reference row of its model and effort differ
+in one lever.
+
+`--compact-at TOKENS` is for a Codex or Claude agent too: Codex compacts the thread once its context passes that many
+tokens, earlier than its own limit ([codex.md](codex.md), "Compaction is Codex's own"), and Claude Code does the same
+through its auto-compaction variables, from 1 to 66,400 tokens in steps of 800 ([claude.md](claude.md), "Compaction"),
+for experiments on memory beyond the context. TOKENS is a whole number, at least 1 (anything else is a usage error, exit
+2); it is refused (exit 2) for every other system, and for Claude beyond its range. A run with a limit cannot be taken for a reference one: `results.json` holds `"compact_at": TOKENS` (a
+reference row has no such key), `results.md` and the viewer's header name the system `<system>, compacts at 50k tokens`,
+`codex.summary.json` (`claude.summary.json`) and the journal's `run` event hold `compact_at` (null without a limit), a resume must find the same
+limit, the export names the row `...-compact-TOKENS-...`, and `eval compare` takes the limit as part of the agent lever,
+with the system, the reasoning effort and the memory. The default folder does not change, as it does not for
+`--reasoning`: give a limited run an `--out` of its own. Both arms of a comparison must be run with the same limit.
 
 Exit 0: every selected case finished (in every arm). Exit 1: some did not (ended, invalid, refused, the spend cap); the
 results so far are written and marked partial. Exit 2: refused before anything ran, or an agent that cannot run at all.
@@ -70,8 +90,8 @@ A case is **finished** when its `summary.json` says `complete` and its rows were
 again skips the finished cases and runs every other one from its start: its folder is removed first (a Codex call
 cannot be replayed, and a stale journal would refuse the rerun). `results.json` is written, with no case finished,
 before the first case runs, so a run killed at any point still says what it was. A rerun into the folder with another
-system, channel, brief, during flag, sandbox, reasoning effort or `text_only` (`RESUME_KEYS`), or onto another compile
-(a finished case's qids not in the gold), is refused, never relabelled. After a change to the scorer or the baselines,
+system, channel, brief, during flag, sandbox, reasoning effort, `text_only`, memory or compaction limit (`RESUME_KEYS`),
+or onto another compile (a finished case's qids not in the gold), is refused, never relabelled. After a change to the scorer or the baselines,
 run into a fresh `--out`. The results list the cases of the current selection.
 
 ## The spend cap
@@ -98,7 +118,8 @@ The conditioning comparison is `--arms brief=correct,neutral`.
 
 ```text
 {"system", "channel", "brief", "during" (bool), "sandbox" ("in-process" | "docker" | "none"),
- "reasoning" (agents; else null), "text_only" (bool),
+ "reasoning" (agents; else null), "text_only" (bool), "memory" (an agent's memory name; absent otherwise),
+ "compact_at" (an agent's compaction limit in tokens; absent otherwise),
  "verified" (sandbox docker or in-process, and no case with remote_memory), "partial", "max_usd",
  "cost_usd" (the sum over the cases that ran; null when any of theirs is),
  "cases": [{"id", "script", "layout", "robot", "job", "length", "status" ("complete", "ended: <why>",
@@ -289,8 +310,8 @@ shown (no pairs)` or `not shown (one script, so no interval)`.
 When the results differ in `during` the off arm holds no during rows, so every mean and every difference is over the end
 questions alone and the table says so. Refused (exit 2, nothing printed): a result sharing no case with the first;
 results scored on different compiles (a shared case with no question in common); results that differ in more than one
-**lever group**: `agent` (the system and the reasoning effort), `channel`, `brief` or `during` (methodology rule 13: one
-axis at a time).
+**lever group**: `agent` (the system, the reasoning effort, the memory and the compaction limit), `channel`, `brief`,
+`during` or `text_only` (methodology rule 13: one axis at a time).
 
 ## `eval distance`
 
@@ -537,7 +558,7 @@ each.
 
 | Option | Reports |
 | --- | --- |
-| `--runs R ...` | the pilot rows: each document is during on with the correct brief. Per agent (system and reasoning effort) and job: the scripts, the cases and questions a case by length, sigma (the SD of the score over questions, also per family), the design effect and rho from 10 scripts, the headline with its 95% interval and the `now` and `memory` columns (the thin pairs the documents record left out of their means), how the cases ended, and per case-run by length the mean tokens (in, of them cached, out), wall time and notional USD |
+| `--runs R ...` | the pilot rows: each document is during on with the correct brief. Per agent (system, memory, compaction limit and reasoning effort) and job: the scripts, the cases and questions a case by length, sigma (the SD of the score over questions, also per family), the design effect and rho from 10 scripts, the headline with its 95% interval and the `now` and `memory` columns (the thin pairs the documents record left out of their means), how the cases ended, and per case-run by length the mean tokens (in, of them cached, out), wall time and notional USD |
 | `--leak ON OFF` | D2: the pair differs in `during` alone. d = the mean of (on - off) of the penalised score (`score_gate`, never the reported score) over the end questions, paired by (case, question), with the script bootstrap's 95% interval, the pairs and the scripts. The verdict reads the pairs whose gold is answerable, per job and pooled; the pairs whose gold is `unknown` are an abstention shift with no verdict, and each (job, family) has its rows (`pilot_leak`; "D2's verdict" below). Repeat for each job; the pairs must be of one agent |
 | `--brief BASE OTHER` | the brief swap: BASE is the correct brief, OTHER the neutral one (or, in a 0.4.x result, the swapped one), differing in `brief` alone. BASE - OTHER per job on the task-critical rows and on the rest, with the cases by length (the report says when most are short). Descriptive: no gate |
 | `--release PLAN.json` | the count rule below, per job: sigma, m, K target, K, the predicted half-width, frames, GPU-hours and points, then the totals and f |

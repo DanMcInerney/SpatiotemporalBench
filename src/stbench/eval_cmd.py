@@ -2,7 +2,7 @@
 
     stbench eval SYSTEM --data D [--out RUNDIR] [--cases ID,...] [--select KEY=VALUE ...] [--channel C] [--brief V]
                  [--during on|off] [--arms LEVER=V1,V2[,...]] [--workers N] [--local] [--timeout S] [--reasoning E]
-                 [--text-only] [--cells-from DEVROOT]
+                 [--text-only] [--memory SPEC] [--compact-at TOKENS] [--cells-from DEVROOT]
                  [--max-usd TOTAL --case-usd X]
     stbench eval compare RESULTS_A RESULTS_B [...] [--out FILE.md] [--cells-from DEVROOT]
     stbench eval distance RUN [REFERENCE_RUN ...] --data D [--out FILE.md] [--cells-from DEVROOT]
@@ -17,7 +17,9 @@ RUNDIR gets `results.json` (`eval_results`) and `results.md` (`eval_report`), on
 layout, never pooled. Running the same command again skips the finished cases and runs the rest from their start (an
 agent's call cannot be replayed); `results.json` is first written, with no case finished, before the first case runs,
 so a run killed at any point still says what it was, and a rerun with another system, channel, brief, during flag,
-sandbox, reasoning effort or text-only flag, or onto another compile, is refused, never relabelled.
+sandbox, reasoning effort, text-only flag, memory (`--memory SPEC`, a Codex or Claude agent's: `codex_memory`) or
+compaction limit (`--compact-at TOKENS`, a Codex or Claude agent's), or onto another compile, is refused, never
+relabelled.
 
 `--arms LEVER=V1,V2` runs one lever's arms on every case: LEVER is `during` (`on`, `off`) or `brief` (`correct`,
 `neutral`; `swapped` is retired and refused, as `--brief swapped` is), each value runs into `RUNDIR/<lever>-<value>` (a
@@ -90,7 +92,8 @@ def _out(args: argparse.Namespace, lever: str | None, brief: str, during: bool) 
     the arms' lever is not its default. Refused under the dataset's `scripts/` or `private/`."""
     suffix = ("" if lever == "brief" or brief == "correct" else f"-{brief}") + (
         "" if lever == "during" or during else "-during-off")
-    name = f"{cmd_run.safe_name(args.system)}-{args.channel}{suffix}" + ("-text-only" if args.text_only else "")
+    name = (f"{cmd_run.safe_name(args.system)}-{args.channel}{suffix}" + ("-text-only" if args.text_only else "")
+            + cmd_run.memory_suffix(args))
     return cmd_run.refuse_truth_folder(args.out or args.data / "runs" / name, args.data)
 
 
@@ -119,7 +122,8 @@ def _config(args: argparse.Namespace) -> Config:
     out = _out(args, lever, brief, during)
     return Config(args.system, kind, args.data, out, args.channel, selected,
                   running.make_arms(out, lever, values, brief, during), lever, args.workers, args.local, args.timeout,
-                  args.reasoning, args.max_usd, args.case_usd, args.text_only, args.cells_from)
+                  args.reasoning, args.max_usd, args.case_usd, args.text_only, cmd_run.load_memory(args),
+                  args.compact_at, args.cells_from)
 
 
 def _clear(cfg: Config) -> None:
@@ -262,6 +266,12 @@ def register(sub) -> None:
     p.add_argument("--reasoning", metavar="EFFORT", help="an agent's reasoning effort (refused for other systems)")
     p.add_argument("--text-only", action="store_true",
                    help="codex or claude agent only: send no image (zero-shot check)")
+    p.add_argument("--memory", metavar="SPEC",
+                   help="codex or claude agent only: a memory SPEC (JSON; docs/codex.md, \"A memory beside the "
+                        "reference agent\") the agent keeps beside its context")
+    p.add_argument("--compact-at", type=cmd_run.token_limit, metavar="TOKENS",
+                   help="codex or claude agent only: compact the thread past this many tokens "
+                        "(default: the agent CLI's own limit)")
     p.add_argument("--cells-from", type=Path, metavar="DEVROOT",
                    help="the dataset whose golds count the cells, and weigh each (a cell of n < 20 questions on a job "
                         "weighs n / 20), instead of the dataset scored: the dev root, for a subset or a held-out set")

@@ -7,6 +7,53 @@ All notable changes to SpatiotemporalBench are recorded here. The format follows
 of an entry; those records are not part of the public repository. The public history starts at 0.11.0: the tags and
 branches of earlier versions that entries below mention are not published.
 
+## [Unreleased]
+
+### Fixed
+
+- **The memory's sensor feed no longer runs one frame ahead** (`--memory SPEC`, Codex and Claude alike). The harness fed
+  a frame to the memory when it read it in, but serves a frame only when the next message shows whether questions join
+  it, so the memory held frame k+1 while the model was shown frame k. A frame is now fed as it is served
+  (`codex_system._feed_held`), and a task is fed after the frame before it: the memory holds exactly the frames the
+  model has been served. The model's own messages are unchanged and a run without a memory is unaffected. **Memory runs
+  made before this change had the one-frame lookahead** (the earlier paid memory runs among them): a `view` of the store
+  could show the frame after the one the agent was looking at, so their memory rows are not directly comparable with new
+  ones.
+
+### Added
+
+- **`--memory SPEC` and `--compact-at TOKENS` for the Claude Code agent** (`claude:<model>`; [docs/claude.md](docs/claude.md),
+  "A memory beside the agent" and "Compaction"). The Codex agent's memory arm now runs on Claude Code, from the one SPEC:
+  the memory's MCP server joins the case's one `claude -p` process (a second entry of `--mcp-config`, every tool allowed
+  by the server's name under `dontAsk`), its guide follows the system prompt, its sensor feed is written each task and
+  frame before the model is served it, a carried record rides on `next_frame`, its calls are journaled (`memory_call`)
+  and read by the leak scan, and the store is kept beside the case as `<name>-store`. Every message the model is sent
+  stays the reference agent's, byte for byte, and a run without a memory differs from before only by `compact_at: null` in
+  its journal and summary. `--compact-at` sets Claude Code's two auto-compaction variables (a window of 100,000 and a
+  percentage; limits from 1 to 66,400 tokens, rounded up to a multiple of 800), and a `compact_boundary` event is a
+  warning of its turn. The tests run against an extended fake Claude (`tests/claude_cli_fake.py`); nothing was run
+  against the real CLI.
+
+- **`--memory SPEC` for the Codex agent** (`stbench run` and `stbench eval`; [docs/codex.md](docs/codex.md), "A memory
+  beside the reference agent"). A memory store is measured under the reference agent's own transport, prompt and images:
+  its MCP server joins the case's one exec (and every resume), its guide follows the base instructions, and its sensor
+  feed (one process for the case, a JSON line in and out for each message) is given each task and each frame, never a
+  question. Every message the model is sent stays the reference agent's, byte for byte. `results.json` names the memory,
+  `eval compare` takes it as part of the agent lever, the memory's tool calls are journaled and counted by name, and the
+  store is kept beside the case as `<name>-store`. Refused on `detections`, with `--text-only` and for other agents.
+- **A memory may carry its record on the pull** (SPEC key `"carry": true`, optional; [docs/codex.md](docs/codex.md), "A
+  memory that carries its record"). With it `next_frame` takes an optional `memory` object, the agent's record about the
+  frame it was just shown, which the harness writes to the memory's sensor feed (`{"record": ...}`) before it counts the
+  pull; the feed's reply is the last text block of the item that pull returns. The journal's `call` event holds the reply
+  and the `served` event gains it; the leak scan reads it. Without `carry` the tools and every message are unchanged.
+- **`--compact-at TOKENS` for the Codex agent** (`stbench run` and `stbench eval`; [docs/codex.md](docs/codex.md),
+  "Compaction is Codex's own"). Every exec of the case, the resume included, is launched with
+  `-c model_auto_compact_token_limit=TOKENS`, so Codex compacts the thread earlier than its own limit, to measure a memory
+  beyond the context. Without it the argv is unchanged. The journal's `run` event and `codex.summary.json` carry
+  `compact_at`, `results.json` names it when it is set, the reports name the system
+  `codex:<model>, compacts at 50k tokens`, `eval compare` takes it as part of the agent lever, and a resume into a
+  folder made with another limit is refused. Refused for other agents.
+
 ## [0.11.0] - 2026-10-16
 
 Two changes, asked for on 2026-10-15 and 2026-10-16: scoring "on a graded curve", and questions that are somewhat better
@@ -279,11 +326,12 @@ again by 0.11.0's scorer are above. All are dev rows; the cells, comparisons and
 - **Change over time.** Still untested: no question asks what moved, appeared or went since an earlier pass. The change
   families stay in the code and are asked by no job. The fix is new data (scripts that revisit places after the world
   changes), which needs new renders.
-- **The leak check on 0.11.0 at full size.** Its two readings are built and tested. A subset reading on 0.11.0's
-  compile (`claude:sonnet`, during off against the fast tier's during on, the 15 fast-tier cases with an end question)
-  gives d +0.123 [-0.018, +0.347] over 33 pairs of 9 scripts: too thin to read, with the AMR's `closest_person` and the
-  vacuum's lists over the margin on their point estimates. The full-size check was started and parked; the last full
-  reading is 0.9.0's.
+- **The leak check on 0.11.0, read after the release (2026-10-17).** `claude:sonnet` at medium effort, during on against
+  off, on every short and medium case of the helper, the vacuum and the AMR: pooled d -0.007, interval [-0.092, +0.079],
+  over 180 answerable pairs of 44 scripts (the AMR -0.010, the helper -0.005, the vacuum -0.003). Inconclusive by the
+  rule, since the upper bound is above the margin of 0.05, so the during questions ship and a leak above +0.079 is
+  excluded. A subset reading before it (33 pairs) had put the AMR's `closest_person` at +0.29; at full size it is +0.03
+  over 30 pairs.
 - **A stopping-distance catastrophe.** The trigger stays the body's length plus C: a reaction time and a braking
   deceleration for each robot have no primary source.
 - **`way_to` for the vacuum, the AMR and the drone,** and the other questions the design considered and left out (a
@@ -1481,4 +1529,5 @@ sensors, with the dataset, the harness that runs and scores it, and a reference 
   and the pinned image and are skipped without them, so CI does not run them; a verified (Docker) agent run takes about
   14 minutes an episode.
 
+[Unreleased]: https://github.com/DanMcInerney/SpatiotemporalBench/compare/v0.11.0...HEAD
 [0.11.0]: https://github.com/DanMcInerney/SpatiotemporalBench/releases/tag/v0.11.0

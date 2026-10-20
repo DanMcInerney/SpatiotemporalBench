@@ -32,7 +32,7 @@ from .view_log import read_log, read_transport
 from .view_questions import counts, merge, read_case_files
 
 INFO_KEYS = ("script", "layout", "robot", "job", "length")
-HEADER_KEYS = ("system", "channel", "brief", "during", "sandbox", "reasoning", "text_only")
+HEADER_KEYS = ("system", "channel", "brief", "during", "sandbox", "reasoning", "text_only", "memory", "compact_at")
 TOKEN_KEYS = ("tokens_in", "tokens_cached_in", "tokens_cache_write_in", "tokens_out")
 KINDS = ("complete", "ended", "invalid", "refused", "unfinished")   # the colour classes of a status; else `pending`
 
@@ -138,12 +138,14 @@ def _case(cid: str, folder: Path | None, entry: dict | None, dataset: Path | Non
 
 
 def _header(doc: dict | None, cases: list[dict], folders: dict[str, Path]) -> dict:
-    """The run's options: `results.json`'s when it has them, else the first `summary.json`'s, with the model and the
-    reasoning effort from the system's own summary where it states them."""
+    """The run's options: `results.json`'s when it has them, else the first `summary.json`'s, with the model, the
+    reasoning effort, the memory and the compaction limit from the system's own summary where it states them."""
     first = _first_summary(folders)
     head = {key: (doc if doc is not None else first).get(key) for key in HEADER_KEYS}
     own = next((t["summary"] for c in cases if (t := c["transport"])), {})
-    head |= {"model": own.get("model"), "reasoning": head["reasoning"] or own.get("reasoning")}
+    head |= {"model": own.get("model"), "reasoning": head["reasoning"] or own.get("reasoning"),
+             "memory": head["memory"] or own.get("memory"),
+             "compact_at": own.get("compact_at") if head["compact_at"] is None else head["compact_at"]}
     head |= {key: (doc or {}).get(key) for key in ("verified", "partial", "max_usd")}
     # eval writes `results.json` when the run begins and when it ends, so its `partial: N of M cases finished` note is
     # that of the start (0) until then: the page counts the finished case folders itself and says so (`totals`).

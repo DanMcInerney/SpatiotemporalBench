@@ -1,11 +1,24 @@
 # The free checks: no secrets, no model calls, no network beyond installing packages. The `docker` and `blender` tests
 # need a Docker daemon with the `python:3.12-slim` image and a Blender install, so they are skipped here (run them on a
 # machine that has both).
+#
+# A pull request and a push to main run the fast set: every test but the modules listed in tests/slow_modules.txt
+# (`-m "not slow"`, about a minute of tests on a runner; tools/slow_tests.py writes the list from a timed run). The
+# nightly run, and a manual run with `full`, run the whole suite.
 name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Run the slow tests too (the whole suite)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -28,11 +41,17 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
       - name: Install
         run: uv sync --extra dev
       - name: Lint
         run: uv run ruff check src tests render examples tools
-      - name: Test
+      - name: Test (the fast set)
+        if: github.event_name != 'schedule' && !inputs.full
+        run: uv run pytest -q -n auto -m "not slow and not docker and not blender"
+      - name: Test (the whole suite)
+        if: github.event_name == 'schedule' || inputs.full
         run: uv run pytest -q -n auto -m "not docker and not blender"
 
   build:
@@ -44,6 +63,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
       - name: Build the sdist and the wheel
         run: uv build
       - name: Install the wheel in a fresh environment

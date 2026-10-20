@@ -25,6 +25,17 @@ serves what it is given.
   and goes through (`codex_asks`). A second call while one is waiting answers `BUSY`. After the end item it answers
   the end again.
 - `submit_answer` is the ask table (`codex_asks`) while an ask is pending, else `NO_QUESTION`.
+- With `carry` (a memory arm whose SPEC says so) a `next_frame` may hold `memory`, a record for the memory. Once the
+  pull is accepted (the run is not over, no other pull is open, no questions are unanswered) the pull is marked open,
+  the record is handed to `carry` outside the lock, and only then is the arrival counted, so the runner, which learns
+  of a pull by its arrival, never uses the memory's sense pipe while a record is being written to it. The reply
+  (`carry`'s dict) is the last text block of the item the pull returns, `"<carry_name>: <compact JSON>"`; the item's
+  own blocks are unchanged and in order. A pull refused (`BUSY`, a premature one, one of a closed feed) carries
+  nothing. A record that is not carried is journaled as a `memory_dropped` event with a `reason`: `end` (the pull came
+  after the end item: it is a call of the model's, answered with the end again, and its `call` event has no
+  `memory_reply`) or `abandoned` (the pull's exec ended while its record was carried: it is no call of the model's, and
+  the event has the reply, `memory_reply`, which nobody reads).
+  The `call` event has the reply as `memory_reply`, and the `served` event of the item has its text.
 - At most `max_calls` calls between two items (the cap does not stop `next_frame`: a model told to pull must be able
   to); past it a call answers `MAX_CALLS` and does nothing.
 
@@ -94,11 +105,18 @@ def _text(text: str) -> list[dict]:
     return [{"type": "text", "text": text}]
 
 
+def _reply(name: str, reply: dict) -> str:
+    """A carried reply as the model reads it, the last text block of an item: the memory's name, then the reply."""
+    return f"{name}: " + json.dumps(reply, ensure_ascii=False, separators=(",", ":"))
+
+
 class Feed:
     """The pull of one case. Safe to call from any thread."""
 
-    def __init__(self, record: Callable[[dict], None] = lambda event: None, *, max_calls: int = 100):
+    def __init__(self, record: Callable[[dict], None] = lambda event: None, *, max_calls: int = 100,
+                 carry: Callable[[dict], dict] | None = None, carry_name: str = "memory"):
         self._record, self._max_calls = record, max_calls
+        self._carry, self._carry_name = carry, carry_name
         self._key = secrets.token_bytes(32)
         self._listener = Listener(("127.0.0.1", 0), authkey=self._key)
         self._cond = threading.Condition()
@@ -118,7 +136,7 @@ class Feed:
     def server_config(self) -> dict:
         """What the tool server's configuration holds: the address to connect to and the key, in hex."""
         host, port = self._listener.address
-        return {"address": [host, port], "key": self._key.hex()}
+        return {"address": [host, port], "key": self._key.hex(), **({"carry": True} if self._carry else {})}
 
     # -- the connection -----------------------------------------------------------------------------------------
     def _accept(self) -> None:
@@ -188,7 +206,7 @@ class Feed:
         if capped:
             content, error = _text(MAX_CALLS), True
         elif name == NEXT_NAME:
-            content, error, extra = self._pull()
+            content, error, extra = self._pull(arguments)
         elif name == SUBMIT_NAME:
             with self._cond:
                 text = NO_QUESTION if self._ask is None else self._ask.submit(arguments)
@@ -203,10 +221,13 @@ class Feed:
             self._record(event)
         return {"content": content, "isError": error}
 
-    def _pull(self) -> tuple[list[dict], bool, dict]:
+    def _pull(self, arguments=None) -> tuple[list[dict], bool, dict]:
+        memory = arguments.get("memory") if isinstance(arguments, dict) and self._carry else None
         with self._cond:
             epoch = self._epoch
             if self._final is not None:
+                if memory is not None:
+                    self._record({"event": "memory_dropped", "reason": "end", "time": round(time.time(), 6)})
                 return self._final.content(), False, {"over": True}
             if self._closed:
                 return _text(CLOSED), True, {"abandoned": True}
@@ -220,6 +241,19 @@ class Feed:
                 if refusal is not None:
                     return _text(refusal), True, extra
                 self._asked, self._ask = self._ask, None
+            carried = None
+            if memory is not None:  # the pull is open from now: another is BUSY while the record is written
+                self._waiting = True
+                self._cond.release()
+                try:
+                    carried = self._carried(memory)
+                finally:
+                    self._cond.acquire()
+                extra = {**extra, "memory_reply": carried}
+                if self._epoch != epoch or self._closed:  # the exec is gone, though the record went
+                    self._record({"event": "memory_dropped", "reason": "abandoned", "memory_reply": carried,
+                                  "time": round(time.time(), 6)})
+                    return _text(CLOSED), True, {"abandoned": True}
             self._arrivals += 1
             self._waiting = True
             self._cond.notify_all()
@@ -229,9 +263,18 @@ class Feed:
                 return _text(CLOSED), True, {"abandoned": True}
             item, self._item = self._item, None
             self._waiting = False
-            return item.content(), False, {**extra, "item": self._take(item)}
+            reply = None if carried is None else _reply(self._carry_name, carried)
+            blocks = item.content() + ([] if reply is None else _text(reply))
+            return blocks, False, {**extra, "item": self._take(item, memory_reply=reply)}
 
-    def _take(self, item: Item, via: str | None = None) -> int:
+    def _carried(self, memory) -> dict:
+        """The memory's reply to a record: `carry`'s, or an error object when it raised (a pull never raises)."""
+        try:
+            return self._carry(memory)
+        except Exception as error:  # noqa: BLE001  (a request never stops the feed: the model reads the error)
+            return {"ok": False, "error": type(error).__name__, "message": str(error)[:200]}
+
+    def _take(self, item: Item, via: str | None = None, memory_reply: str | None = None) -> int:
         """The model has the item: number it, start counting its calls, open its ask, and record it as served."""
         number = self._taken
         self._taken += 1
@@ -243,7 +286,8 @@ class Feed:
                  "images": [] if item.image is None else [image_hash(item.image)],
                  "at": round(time.monotonic(), 6), "time": round(time.time(), 6)}
         self._record({**event, **({"ask": item.ask} if item.ask else {}),
-                      **({"asked": item.asked} if item.asked else {}), **({"via": via} if via else {})})
+                      **({"asked": item.asked} if item.asked else {}), **({"via": via} if via else {}),
+                      **({"memory_reply": memory_reply} if memory_reply else {})})
         return number
 
     # -- the runner's side --------------------------------------------------------------------------------------

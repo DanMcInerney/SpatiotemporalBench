@@ -94,11 +94,12 @@ def test_every_exec_is_launched_with_the_restrictions_and_the_tool_server_only(t
 
 
 def test_compaction_is_codex_default(tmp_path):
-    """Contract (plan §6.5 N7, recommendations §2.4): Codex's own automatic compaction is left on, so no exec is
-    launched with a compaction limit of any size: neither the start nor the resume holds
-    `model_auto_compact_token_limit`, and `CONFIG`, the settings every exec shares, names none. Regression caught: the
-    override that once switched the agent's context management off (a limit of 100,000,000 tokens) coming back, so a
-    long case would overflow the window instead of being compacted as it would be in use."""
+    """Contract (plan §6.5 N7, recommendations §2.4): Codex's own automatic compaction is left on, so unless the run
+    asks for `--compact-at` (`test_compact_at.py`) no exec is launched with a compaction limit of any size: neither
+    the start nor the resume holds `model_auto_compact_token_limit`, and `CONFIG`, the settings every exec shares,
+    names none. Regression caught: the override that once switched the agent's context management off (a limit of
+    100,000,000 tokens) coming back, so a long case would overflow the window instead of being compacted as it would be
+    in use."""
     fake = Fake(tmp_path)
     fake.codex.prepare()
     for kind, thread in (("start", None), ("resume", "thread-0000")):

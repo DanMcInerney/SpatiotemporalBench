@@ -54,6 +54,7 @@ def main() -> None:
     hfov = json.loads((args.root / "sensors" / "camera.json").read_text())["hfov_deg"]
     Camera.load(args.root / "sensors" / "camera.json")
     scene = build_scene.build(tl, m, hfov, (asset_manifest.load(args.manifest), args.library))
+    bpy.context.view_layer.update()  # the objects' `matrix_world` from their locations (else each box is at the origin)
     objects = list(bpy.data.objects)
     result = {
         "objects": sorted(o.name for o in objects),

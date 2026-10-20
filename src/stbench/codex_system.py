@@ -4,11 +4,11 @@
 prompt and the messages are `llm_render`'s, the tools are `next_frame` and `submit_answer` (`codex_mcp` relays them to
 `codex_feed`), and Codex is held to those tools and nothing else (`codex_exec`). The agent remembers with its own
 context: it has no memory tool, no pointing tool and no instruction about what to keep, and the state directory stays
-empty. It runs on `rgb_pose`, the default and the headline, reading each frame's camera image alone and judging distance
-from the picture (the robot has a camera and no depth sensor); and on `detections`, the arm that measures what the
-pixels cost, reading each frame's detections as text lines and no image. With `text_only` it reads no image on
-`rgb_pose` either, the header lines alone: the zero-shot check of what the questions give away. It is an option and not
-a channel, and `cmd_codex` stamps the run with it.
+empty (but for a run with a memory, below). It runs on `rgb_pose`, the default and the headline, reading each frame's
+camera image alone and judging distance from the picture (the robot has a camera and no depth sensor); and on
+`detections`, the arm that measures what the pixels cost, reading each frame's detections as text lines and no image.
+With `text_only` it reads no image on `rgb_pose` either, the header lines alone: the zero-shot check of what the
+questions give away. It is an option and not a channel, and `cmd_codex` stamps the run with it.
 
 The harness pushes and the model pulls. The case is one `codex exec` (`codex_live.Live`) on one thread; the runner's
 messages become the replies to the model's `next_frame` calls, in stream order, and each of them returns once the model
@@ -26,6 +26,28 @@ has pulled again (it is done with the item) or has been found not to be going to
 - `finish`: the end item, "The job is over", then up to `finish_wait_s` for the turn to complete, then a kill. The
   tokens of the case under the model's id (input, cached, cache writes and output) are each exec's own share of its
   thread's running total; a turn that was killed prints none, so then the count is a lower bound (the summary says so).
+
+A memory (`codex_memory`, `stbench run|eval --memory SPEC`) is one thing added beside the agent's own context, and
+nothing the model is sent changes with it: every message and item (the first prompt, each task, frame, ask, resume line
+and the end item) is the reference agent's, byte for byte. What differs is the base instructions of the exec (the
+memory's guide follows the one line), a second MCP server in its argv (the memory's own, for the store in the state
+directory; the model calls it and `codex_live` journals the calls), and the memory's sensor feed, one process for the
+case that `start` opens before anything is sent to the model. Each `start`, `task` and frame is written to it, one JSON
+line, and its one-line reply awaited before the system goes on. A frame is written as it is served to the model
+(`_feed_held`, the one place a held frame leaves: alone, or with its questions), never when the runner reads ahead
+to the next message: the store holds exactly the frames the model has been served, so frame k is in it when the model is
+shown frame k and frame k+1 is not. It is never sent an ask, a question or the end. A feed that fails ends the case as
+`TransportError("memory")` (journaled as `memory_failed`). `close` ends the
+feed and copies the store to `keep`.
+
+A memory that carries (`Memory.carry`, SPEC key `carry`) changes two more things, both only for its own arm: the tool
+server offers `next_frame` an optional `memory` argument (`agent_tools.tools(True)`), and the model's record rides on
+its pull. `_carry` writes `{"record": memory}` to the sensor feed from the feed's thread, before the pull is counted
+(`codex_feed`), and the feed's reply is the last text block of the item that pull gets; the runner learns of the pull
+only then, so it never uses the one sense pipe at the same time. A feed that fails on a record is journaled
+(`memory_failed`, message `record`) and the case ends as `TransportError("memory")` at the runner's next check
+(`_settle`), which raises before any item is served: the pull that carried the record is closed with the rest of the
+feed, so the model is told nothing of the failure.
 
 A held frame (FD-questions-0.10 §1.5). A separate ask item costs the model one pull more for every question, and the
 controller's real moment is looking and deciding together, so an ask that follows a frame joins it: the model gets one
@@ -55,8 +77,12 @@ here reads a step's `identity` or `detections`, a question's `template` or `slot
 
 from __future__ import annotations
 
+import json
+import shutil
+import tempfile
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 from . import llm_render
 from .agent_tools import ContextTooLong
@@ -64,6 +90,8 @@ from .codex_exec import Codex, CodexError, CodexTimeout, Result, failure_reason,
 from .codex_feed import Feed, Item
 from .codex_live import Live
 from .codex_log import Journal
+from .codex_memory import Memory, MemoryFailure, Sense, feed_step
+from .safecopy import remove_tree
 from .stream_protocol import TIMEOUTS, System, TransportError, failed, timeout_key
 
 TOKENS = {"tokens_in": "prompt_tokens", "tokens_cached_in": "cached_tokens",
@@ -95,7 +123,9 @@ class CodexSystem(System):
     caller that knows no job). `families` are the families the job asks (`brief.asked_families`), which with `kinds`
     decide the credit section's bullets about one kind of answer or one family (None: all of them). `text_only`
     withholds every image (see the module docstring); `start` raises ValueError on the `detections` channel, which sends
-    none."""
+    none. `memory` is a memory the agent keeps beside its context (`codex_memory`; None, the reference agent, keeps
+    none), and `keep` the folder its store is copied to when the case closes (without its `cache/`, which the store
+    rebuilds), so what the agent wrote can be read after the case's state folder is gone."""
 
     channels = ("rgb_pose", "detections")
 
@@ -104,12 +134,17 @@ class CodexSystem(System):
                  match_m: float | None = None, clearance_m: float | None = None, reacquire_m: float | None = None,
                  lists: bool = False, headings: bool = False, hazards: tuple[str, ...] = (),
                  kinds: tuple[str, ...] | None = None, families: tuple[str, ...] | None = None,
-                 turns: bool = True, text_only: bool = False, **opts):
+                 turns: bool = True, text_only: bool = False, memory: Memory | None = None, keep: Path | None = None,
+                 **opts):
         super().__init__(state_dir, workdir, **opts)
         self.codex, self.journal, self.settings, self.timeouts = codex, journal, settings, timeouts
         self.asks_during, self.asks_end, self.match_m, self.text_only = asks_during, asks_end, match_m, text_only
         self.clearance_m, self.reacquire_m, self.lists, self.headings = clearance_m, reacquire_m, lists, headings
         self.hazards, self.kinds, self.families, self.turns = hazards, kinds, families, turns
+        self.memory, self.keep = memory, keep
+        self.sense: Sense | None = None  # the memory's sensor feed, once `start` opened it
+        self._lost: MemoryFailure | None = None  # the sensor feed failed on a carried record, which the runner ends on
+        self._camera: dict | None = None  # public/camera.json, which the feed is given with the frames
         self.thread: str | None = None
         self.execs = 0
         self.tokens = dict.fromkeys(TOKENS, 0)
@@ -120,15 +155,30 @@ class CodexSystem(System):
         self._sent: tuple[str, str] = ("start", "")  # the kind and prompt of the latest launch
         self._msg: tuple[str, int] = ("task", 0)  # the purpose of the message being served, and its questions
         self._held: Item | None = None  # the latest frame, not yet served: the next message says what goes with it
+        self._held_step: dict | None = None  # its step for the memory's feed, written only when the frame is served
+        self._sense_dir: Path | None = None  # where the held frame's image is put for the feed (`_feed_held`)
 
     # -- the stream ---------------------------------------------------------------------------------------------
     def start(self, session, robot, channel) -> None:
         if self.text_only and channel != "rgb_pose":
             raise ValueError(f"text_only withholds the camera images of rgb_pose, not those of {channel!r}")
+        if self.memory is not None and channel != "rgb_pose":
+            raise ValueError(f"a memory is fed the camera images of rgb_pose, not {channel!r}")
         super().start(session, robot, channel)
-        self.feed = Feed(self.journal.note, max_calls=self.settings.max_calls_item)
+        carries = self.memory is not None and self.memory.carry
+        self.feed = Feed(self.journal.note, max_calls=self.settings.max_calls_item,
+                         **({"carry": self._carry, "carry_name": self.memory.name} if carries else {}))
+        if self.memory is not None:  # before anything is sent to the model
+            self._camera = json.loads((self.public / "camera.json").read_text(encoding="utf-8"))
+            try:
+                self.sense = self.memory.open_sense(self.state_dir, self.codex.model)
+            except MemoryFailure as error:
+                self._unfed("start", error)
+            self._sense("start", {"camera": self._camera, "robot": robot})
 
     def task(self, index: int, clock: str, gap_s: float, brief: str) -> None:
+        self._flush()   # the frame before the task is served first (and fed), so the memory hears of the task after it
+        self._sense("task", {"index": index, "clock": clock, "gap_s": gap_s, "brief": brief})
         text = llm_render.task_message(index, clock, gap_s, brief)
         item = Item("task", text)
         if self.live is None:  # the case's first message: it starts the thread, and the item is in the prompt
@@ -145,8 +195,9 @@ class CodexSystem(System):
         step = steps[0]
         text, image = llm_render.frame_message(step, self.channel, text_only=self.text_only)
         data = (self.workdir / image).read_bytes() if image else None
-        self._flush()  # the frame before is not asked about: it goes alone
+        self._flush()  # the frame before is not asked about: it goes alone (and is fed to the memory as it goes)
         self._held = Item("frame", text, data, k=step["k"])
+        self._held_step = feed_step(step, self.workdir) if self.sense is not None else None   # fed when served
 
     def ask(self, when: str, now: dict, questions: list[dict]) -> dict[str, dict]:
         labelled = llm_render.labelled(questions)
@@ -157,6 +208,7 @@ class CodexSystem(System):
                     types={label: q["answer_type"] for label, q in labelled.items()})
         if self._held is not None and self._held.k == now["k"]:  # the questions are about the frame held: one item
             held, self._held = self._held, None
+            self._feed_held(held)
             item = held.with_ask(item)
         try:
             self._deliver(item, "ask", timeout_key("ask", when), len(qids))
@@ -171,17 +223,83 @@ class CodexSystem(System):
         return self._usage()
 
     def close(self) -> None:
-        if self.live is not None:
-            self.live.kill()
-            if not self._reaped:
-                self._record("close")
-            self.live.close()
-        if self.feed is not None:
-            self.feed.close()
+        try:
+            if self.live is not None:
+                self.live.kill()
+                if not self._reaped:
+                    self._record("close")
+                self.live.close()
+            if self.feed is not None:
+                self.feed.close()
+        finally:
+            if self.sense is not None:
+                self.sense.close()
+            if self._sense_dir is not None:
+                remove_tree(self._sense_dir)
+            self._keep_store()
 
     # -- parts --------------------------------------------------------------------------------------------------
     def _usage(self) -> dict:
         return {"models": {self.codex.model: dict(self.tokens)}, "peak_context": None, "remote_store_bytes": None}
+
+    def _sense(self, kind: str, body: dict) -> None:
+        """Send one message to the memory's sensor feed and wait for its reply (nothing without a feed). A failure is
+        journaled and ends the case as `TransportError("memory")`."""
+        if self.sense is None:
+            return
+        try:
+            self.sense.send({kind: body})
+        except MemoryFailure as error:
+            self._unfed(kind, error)
+
+    def _feed_held(self, held: Item) -> None:
+        """Write the frame `held` to the memory's feed, as it is about to be served to the model and not before: the
+        memory holds exactly the frames the model has been served, never the next one the runner has read ahead to (the
+        message after a frame says whether questions join it). The inbox no longer holds the image, so the frame's
+        bytes are put in a file of the system's own for the length of the message."""
+        step, self._held_step = self._held_step, None
+        if step is None or self.sense is None:
+            return
+        if self._sense_dir is None:
+            self._sense_dir = Path(tempfile.mkdtemp(prefix="stbench-sense-"))
+        image = self._sense_dir / Path(step["rgb"]).name
+        image.write_bytes(held.image)
+        try:
+            self._sense("observe", {"camera": self._camera, "steps": [{**step, "rgb": str(image)}]})
+        finally:
+            image.unlink(missing_ok=True)
+
+    def _carry(self, memory: dict) -> dict:
+        """The model's record, written to the sensor feed from the feed's thread (`codex_feed`), and the feed's reply. A
+        failure is journaled and kept for the runner (`_settle`), which ends the case before an item is served, so the
+        error reply is never read by the model."""
+        try:
+            return self.sense.send({"record": memory})
+        except MemoryFailure as error:
+            self._lost = error
+            self._journal_unfed("record", error)
+            return {"ok": False, "error": "memory_failed", "message": "the memory could not be reached"}
+
+    def _journal_unfed(self, kind: str, error: MemoryFailure) -> None:
+        self.journal.note({"event": "memory_failed", "message": kind, "error": str(error)[:500]})
+
+    def _unfed(self, kind: str, error: MemoryFailure) -> None:
+        """The memory's sensor feed failed on the message `kind`: journal it and end the case."""
+        self._journal_unfed(kind, error)
+        raise TransportError("memory") from error
+
+    def _keep_store(self) -> None:
+        """Copy the memory's store to `keep`, without its `cache/` (replacing what an earlier run of the case left
+        there). A copy that fails is journaled: the answers stand."""
+        store = None if self.memory is None or self.keep is None else self.memory.store(self.state_dir)
+        if store is None or not store.is_dir():
+            return
+        try:
+            remove_tree(self.keep)
+            shutil.copytree(store, self.keep, ignore=lambda folder, names: {"cache"} & set(names)
+                            if Path(folder) == store else set())
+        except OSError as error:
+            self.journal.note({"event": "store_not_kept", "error": str(error)[:500]})
 
     def _answer(self, qid: str, label: str, entry: dict, nudged: bool) -> dict:
         """The answer of one label from the ask's table, noted in the journal: submitted (`repaired` when a bad try or
@@ -219,6 +337,7 @@ class CodexSystem(System):
         from now: the message that came next asks nothing about it. Nothing when no frame is held."""
         held, self._held = self._held, None
         if held is not None:
+            self._feed_held(held)
             self._msg = ("observe", 0)
             self._settle(self.feed.supply(held), timeout_key("observe"))
 
@@ -228,6 +347,8 @@ class CodexSystem(System):
         deadline = time.monotonic() + self.timeouts[key]
         while True:
             outcome = self.feed.wait(ticket, deadline, self.live.alive)
+            if self._lost is not None:  # a carried record failed (journaled when it did)
+                raise TransportError("memory") from self._lost
             if outcome == "pulled":
                 self.stalls = 0
                 return
@@ -251,8 +372,9 @@ class CodexSystem(System):
         self.journal.note({"event": "exec_started", "kind": kind, "base": self.thread, "prompt": prompt,
                            "attempt": attempt})
         try:
-            self.live = Live(self.codex, kind=kind, thread=self.thread, prompt=prompt,
-                             server=self.feed.server_config(), wake=self.feed.wake, attempt=attempt)
+            memory = None if self.memory is None else self.memory.server(self.state_dir, self.codex.model)
+            self.live = Live(self.codex, kind=kind, thread=self.thread, prompt=prompt, server=self.feed.server_config(),
+                             wake=self.feed.wake, attempt=attempt, memory=memory, note=self.journal.note)
         except CodexError as error:
             self._fail(error)
         self._reaped = False
@@ -310,7 +432,7 @@ class CodexSystem(System):
         the exec. The frame still held is served first, alone (a failure of that is raised, as any message's); a
         failure after it is journaled, not raised: the answers stand."""
         if self.live is None or self._reaped:
-            self._held = None  # no exec to serve it to
+            self._held, self._held_step = None, None  # no exec to serve it to: the memory is not fed it either
             return
         self._flush()
         live = self.live  # after the flush: serving the frame may have resumed the thread in a new exec

@@ -10,7 +10,7 @@ from functools import cache
 
 import numpy as np
 
-from builders import keyframe, start_status
+from builders import hand_job, keyframe, start_status
 from stbench import SEED_KEY, job_registry
 from stbench.clutter import place
 from stbench.generate import build_world, light_starts, to_timeline
@@ -65,16 +65,17 @@ def clutter_timeline(seed: int) -> Timeline:
 def script(seed: int, robot: str, poses: list[tuple[float, float, float]], room: str = "hall",
            world=None) -> Timeline:
     """The cluttered world (or `world`, e.g. `generated_world(seed)`) under a one-task script of `robot` with its base
-    at each pose (x, y, yaw in degrees), one second apart, each in the robot's start set; the task is the job's first
-    kind (`hand` for a job not written yet)."""
+    at each pose (x, y, yaw in degrees), one second apart, each in the robot's start set, stamped with
+    `builders.hand_job`; the task is the vacuum's first kind, or `hand` for another robot."""
     m, r = apartment(), ROBOTS[robot]
     kfs = [keyframe(robot, k, float(k), (x, y, 0.0), math.radians(yaw), task=0, phase=r.status.start["phase"],
                     status=start_status(robot)) for k, (x, y, yaw) in enumerate(poses)]
+    job_id = hand_job(robot)
     try:
-        plan = TaskPlan(job_registry.get(f"{robot}/1").task_kinds[0], {"room": room})
+        plan = TaskPlan(job_registry.get(job_id).task_kinds[0], {"room": room})
     except KeyError:
         plan = TaskPlan("hand", {"room": room})
-    info = EpisodeInfo(m.name, seed, robot, f"{robot}/1", "2026-03-02T08:00:00")
+    info = EpisodeInfo(m.name, seed, robot, job_id, "2026-03-02T08:00:00")
     return to_timeline(m, world or cluttered(seed), Ego(kfs, [Task(0, 0, len(kfs), plan, ())], []), info)
 
 

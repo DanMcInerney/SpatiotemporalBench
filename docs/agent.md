@@ -270,7 +270,16 @@ The Codex reference agent keeps no `state_dir` at all: it has no memory tool, no
 what to keep, and it remembers with its own context, which Codex compacts itself; its native file and shell tools stay
 disabled because they could read the private truth on disk (`docs/codex.md`). Its 0.4.x rows
 used an earlier scaffold with memory tools, memory coaching and `locate`; they measure the model with that scaffold,
-not its own memory.
+not its own memory. The same agent on Claude Code (`claude:<model>`, `docs/claude.md`) is the same.
+
+**A memory beside the reference agent** is the one thing that gives it a `state_dir`: `--memory SPEC` on `codex:<model>`
+or `claude:<model>` (one SPEC runs under both; `docs/codex.md`, "A memory beside the reference agent", and
+`docs/claude.md`, "A memory beside the agent") starts the SPEC's MCP server beside `next_frame` and `submit_answer`, feeds
+the robot's sensors (each task and frame, never a question) to its store, and puts its guide in the agent's instructions
+(Codex's base instructions, Claude Code's system prompt). The store is `<state_dir>/<name>`, so its size is counted, it
+is empty at the start of every case, and it is copied beside the case's files as `<name>-store`. Every message the model
+is sent stays the reference agent's, byte for byte, and the run is named and compared as a memory row. `--compact-at
+TOKENS` makes either CLI compact its conversation earlier, so the memory is measured beyond the context.
 
 **Credentials.** A `--local` run inherits the environment of the shell that runs `stbench run`, so give a key as a
 variable (`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `OPENAI_API_KEY`, ...). No login file of yours is in the

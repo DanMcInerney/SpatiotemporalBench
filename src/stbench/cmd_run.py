@@ -1,7 +1,7 @@
 """`stbench run`: one system over one case, through the stream protocol.
 
     stbench run SYSTEM CASE_DIR [--channel C] [--brief V] [--during on|off] [--local] [--timeout S] [--reasoning E]
-                [--out DIR]
+                [--text-only] [--memory SPEC] [--compact-at TOKENS] [--out DIR]
 
 CASE_DIR is `DATASET/private/<cid>`. SYSTEM is one of:
 - a baseline name (`baselines.BASELINES`), built with the options `suite_priors.options_for` gives it over the dataset's
@@ -10,15 +10,18 @@ CASE_DIR is `DATASET/private/<cid>`. SYSTEM is one of:
 - `FILE.py:Class`, an external system: in the Docker sandbox (the verified mode), or with `--local` as a plain process
   through the same shim, stamped `sandbox: none` and not a verified score (docs/agent.md);
 - `<agent>:<model>`, a reference agent from `AGENTS` (one registry: each agent is a dotted path to a runner,
-  `run(model, case, args) -> CaseRun`, imported when it is named). `--reasoning` and `--text-only` go to an agent and
-  are refused for the others; `--local` is refused for anything but `FILE.py:Class`. An agent's runner raises
-  `Refused` for a run that must not start, which exits 2 with its message; `RunInvalid` for a run that finished but
-  cannot be scored (the files it wrote to be inspected stay), which exits 1 and writes no answers; any other
-  exception it raises exits 1. A runner finds `args.out` already set (the folder it may write its own files to, made
-  before it is called) and writes nothing else of `stbench run`'s.
+  `run(model, case, args) -> CaseRun`, imported when it is named). `--reasoning`, `--text-only`, `--memory SPEC`
+  (a memory beside the agent's context: `codex_memory`, docs/codex.md) and `--compact-at TOKENS` (the CLI compacts the
+  conversation past that many tokens, earlier than its own limit: docs/codex.md, docs/claude.md) go to a `codex` or
+  `claude` agent and are refused for the others, `--memory`
+  also with `--text-only` and on a channel that sends no image; `--local` is refused for anything but `FILE.py:Class`.
+  An agent's runner raises `Refused` for a run that must not start, which exits 2 with its message; `RunInvalid` for a
+  run that finished but cannot be scored (the files it wrote to be inspected stay), which exits 1 and writes no answers;
+  any other exception it raises exits 1. A runner finds `args.out` already set (the folder it may write its own files
+  to, made before it is called) and writes nothing else of `stbench run`'s.
 
-It writes under `--out` (default `DATASET/runs/<system>-<case id>/`, with `-text-only` added when set, never under the
-dataset's `scripts/` or `private/`)
+It writes under `--out` (default `DATASET/runs/<system>-<case id>/`, with `-text-only` and `-memory-<SPEC's stem>` added
+when set, never under the dataset's `scripts/` or `private/`)
 `answers.jsonl` (`{"qid", "answer"}` in the order of the case's questions: a question the harness could not get an
 answer for holds `stream_protocol.failed(reason)`), `rows.jsonl` (one scored row a gold: `suite.score_rows`) and
 `summary.json` (what was run, how it ended, wall time and state size, usage as the system reported it, whether that
@@ -51,6 +54,9 @@ from . import episode as ep
 from .baselines import BASELINES
 from .brief import VARIANTS
 from .case import PRIVATE, SCRIPTS, CasePaths
+from .claude_exec import compaction_problem
+from .codex_memory import Memory, MemoryFailure
+from .codex_memory import load as load_spec
 from .local_system import LocalCommandSystem
 from .safecopy import UnsafeTree
 from .stream import CaseRun, run_case
@@ -60,6 +66,8 @@ from .system import MIN_TIMEOUT, CommandSystem, timeouts_of
 # agent -> the dotted path of its runner (see the docstring)
 AGENTS = {"codex": "stbench.cmd_codex.run", "claude": "stbench.cmd_claude.run"}
 TEXT_ONLY_AGENTS = frozenset({"codex", "claude"})   # the agents that can withhold every image (`--text-only`)
+MEMORY_AGENTS = frozenset({"codex", "claude"})   # the agents that can keep a memory beside their context (`--memory`)
+COMPACT_AGENTS = frozenset({"codex", "claude"})   # the agents whose compaction limit can be set (`--compact-at TOKENS`)
 FILE_SYSTEM = re.compile(r"(?P<file>.+\.py):(?P<cls>[A-Za-z_]\w*)")   # the last `:` splits, so C:\x\sys.py:Echo works
 AGENT_SYSTEM = re.compile(r"(?P<agent>[A-Za-z][\w-]*):(?P<model>.+)")
 UNSANDBOXED = "run without the Docker sandbox: not a verified score"
@@ -87,6 +95,13 @@ def seconds(text: str) -> float:
     return value
 
 
+def token_limit(text: str) -> int:
+    """A `--compact-at` value (`stbench eval` takes it too): a whole number of tokens, at least 1."""
+    if not (text.isascii() and text.isdigit()) or int(text) < 1:
+        raise argparse.ArgumentTypeError(f"{text!r} must be a whole number of tokens, at least 1")
+    return int(text)
+
+
 def safe_name(text: str) -> str:
     """`text` with every character outside [A-Za-z0-9._-] turned into `_`: a system's name as a folder name."""
     return re.sub(r"[^A-Za-z0-9._-]", "_", text)
@@ -103,8 +118,9 @@ def refuse_truth_folder(out: Path, dataset: Path) -> Path:
 
 def _out_dir(args: argparse.Namespace, case: CasePaths) -> Path:
     """`--out`, or `DATASET/runs/<system>-<case id>` with the system as `safe_name`; Refused under the dataset's
-    `scripts/` or `private/`. A `--text-only` run adds `-text-only`, so it cannot land in a camera run's folder."""
-    suffix = "-text-only" if getattr(args, "text_only", False) else ""
+    `scripts/` or `private/`. A `--text-only` run adds `-text-only` and a run with a memory `-memory-<SPEC's stem>`, so
+    neither can land in a plain camera run's folder."""
+    suffix = ("-text-only" if getattr(args, "text_only", False) else "") + memory_suffix(args)
     return refuse_truth_folder(args.out or case.dataset / "runs" / f"{safe_name(args.system)}-{case.id}{suffix}",
                                case.dataset)
 
@@ -169,7 +185,8 @@ def _agent(name: str, model: str) -> Runner:
 
 def classify(args: argparse.Namespace) -> tuple[str, re.Match | None]:
     """(the kind of `args.system`: BASELINE, EXTERNAL or AGENT, the match of the last two). Refused for a SYSTEM that is
-    none of the three kinds and for an option it cannot take (`args.local`, `args.reasoning` and `args.text_only`)."""
+    none of the three kinds and for an option it cannot take (`args.local`, `args.reasoning`, `args.text_only`,
+    `args.memory` and `args.compact_at`)."""
     external = FILE_SYSTEM.fullmatch(args.system)
     agent = None if external else AGENT_SYSTEM.fullmatch(args.system)
     if agent and agent["agent"] not in AGENTS:
@@ -182,6 +199,19 @@ def classify(args: argparse.Namespace) -> tuple[str, re.Match | None]:
         raise Refused(f"--local applies to a FILE.py:Class SYSTEM, not {args.system!r}")
     if args.reasoning and kind != AGENT:
         raise Refused(f"--reasoning applies to an agent (<agent>:<model>), not {args.system!r}")
+    if getattr(args, "memory", None):
+        if not (agent and agent["agent"] in MEMORY_AGENTS):
+            raise Refused(f"--memory applies to {' or '.join(sorted(MEMORY_AGENTS))} agents (<agent>:<model>), "
+                          f"not {args.system!r}")
+        if getattr(args, "text_only", False) or "rgb" not in CHANNELS[getattr(args, "channel", DEFAULT_CHANNEL)]:
+            raise Refused("--memory feeds the memory the camera images: run it on the rgb_pose channel, without "
+                          "--text-only")
+    if getattr(args, "compact_at", None) is not None and not (agent and agent["agent"] in COMPACT_AGENTS):
+        raise Refused(f"--compact-at applies to {' or '.join(sorted(COMPACT_AGENTS))} agents (<agent>:<model>), "
+                      f"not {args.system!r}")
+    if getattr(args, "compact_at", None) is not None and agent["agent"] == "claude" and \
+            (problem := compaction_problem(args.compact_at)):
+        raise Refused(problem)
     if getattr(args, "text_only", False):
         if not (agent and agent["agent"] in TEXT_ONLY_AGENTS):
             raise Refused(f"--text-only applies to {' or '.join(sorted(TEXT_ONLY_AGENTS))} agents "
@@ -189,6 +219,24 @@ def classify(args: argparse.Namespace) -> tuple[str, re.Match | None]:
         if "rgb" not in CHANNELS[getattr(args, "channel", DEFAULT_CHANNEL)]:
             raise Refused(f"--text-only withholds the image, and the {args.channel} channel sends none")
     return kind, external or agent
+
+
+def memory_suffix(args: argparse.Namespace) -> str:
+    """What a default folder gains for a run with `--memory SPEC`: `-memory-<SPEC's file stem>` (else nothing), so a run
+    with a memory never lands in the reference agent's folder."""
+    spec = getattr(args, "memory", None)
+    return f"-memory-{safe_name(Path(spec).stem)}" if spec else ""
+
+
+def load_memory(args: argparse.Namespace) -> Memory | None:
+    """The memory `--memory SPEC` names (`args.memory`; absent or None: none). Refused when SPEC cannot be used."""
+    spec = getattr(args, "memory", None)
+    if not spec:
+        return None
+    try:
+        return load_spec(spec)
+    except MemoryFailure as error:
+        raise Refused(str(error)) from None
 
 
 def sandbox_of(kind: str, local: bool) -> str:
@@ -289,6 +337,12 @@ def register(sub) -> None:
     r.add_argument("--reasoning", metavar="EFFORT", help="an agent's reasoning effort (refused for other systems)")
     r.add_argument("--text-only", action="store_true",
                    help="codex or claude agent only: send no image (zero-shot check)")
+    r.add_argument("--memory", metavar="SPEC",
+                   help="codex or claude agent only: a memory SPEC (JSON; docs/codex.md, \"A memory beside the "
+                        "reference agent\") the agent keeps beside its context")
+    r.add_argument("--compact-at", type=token_limit, metavar="TOKENS",
+                   help="codex or claude agent only: compact the thread past this many tokens "
+                        "(default: the agent CLI's own limit)")
     r.add_argument("--out", type=Path, help="the folder for answers.jsonl, rows.jsonl and summary.json (default "
                                             "DATASET/runs/<system>-<case id>)")
     r.set_defaults(func=_run)

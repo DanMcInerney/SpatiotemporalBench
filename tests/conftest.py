@@ -6,10 +6,11 @@ from collections import Counter
 from copy import deepcopy
 from dataclasses import replace
 from functools import cache
+from pathlib import Path
 
 import pytest
 
-from builders import keyframe, start_status
+from builders import hand_job, keyframe, start_status
 from stbench import job_registry
 from stbench.generate import build_world, to_timeline
 from stbench.mapspec import MapSpec, load_map
@@ -44,10 +45,7 @@ def script_on_map(map_name: str, seed: int, robot: str, poses, *, plan: TaskPlan
     the room the first pose stands in (the region's name; none when it stands in no room, as in a street). The
     timeline is the caller's to edit: its entities' attributes are copies of the cached world's."""
     m, r = load_map(map_name), ROBOTS[robot]
-    # a hand-built script is stamped with the vacuum's job (its tests read `vacuum/1`'s rules) or, for another robot, an
-    # unregistered hand job, so `validate` applies that robot's generic rules only (a written job's checks refuse a hand
-    # plan: the drone's needs its address and zone)
-    job_id = f"{robot}/1" if robot == "vacuum" else f"{robot}/hand"
+    job_id = hand_job(robot)
     if plan is None:
         room = m.region_of(poses[0][:2])
         params = {} if room is None else {"room": m.region(room).name}
@@ -94,13 +92,28 @@ def pytest_collection_modifyitems(items):
 
     The tests of a group (a module's scripts built once, in one worker) run first, the biggest group first: xdist hands
     out whole groups and single tests in collection order, so a group of a hundred seconds that comes last in the
-    collection is a hundred seconds of the run in which the other workers have nothing left to do."""
+    collection is a hundred seconds of the run in which the other workers have nothing left to do.
+
+    Every test of a module named in `slow_modules.txt` (written by `tools/slow_tests.py` from a timed run) is marked
+    `slow`, which CI's fast set (`-m "not slow"`) leaves out; its nightly run keeps them."""
+    slow = _slow_modules()
     for item in items:
         if item.get_closest_marker("docker"):
             item.add_marker(pytest.mark.xdist_group("docker"))
+        if item.path.stem in slow:
+            item.add_marker(pytest.mark.slow)
     named = {item: _group_of(item) for item in items}
     size = Counter(name for name in named.values() if name is not None)
     items.sort(key=lambda item: (0, -size[named[item]]) if named[item] is not None else (1, 0))   # a stable sort
+
+
+@cache
+def _slow_modules() -> frozenset[str]:
+    """The module names listed in `slow_modules.txt` beside this file, one a line; none when the file is absent."""
+    path = Path(__file__).with_name("slow_modules.txt")
+    if not path.exists():
+        return frozenset()
+    return frozenset(line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
 
 
 def _group_of(item) -> str | None:

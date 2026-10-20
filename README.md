@@ -571,12 +571,11 @@ and `EVIDENCE VERDICT PASSES`, per job and in full. The largest lead a shortcut 
 - **The rows cover 42 of the 124 short and medium cases** (above), so their intervals are wide, and each model ran once.
   The one-frame pull re-reads the whole session at every frame, so a case reads millions of input tokens; the report's
   cost table has the means, with the cached share.
-- **The leak check was not rerun at full size.** Whether asking during the job changes the end answers was last read
-  at full size on 0.9.0's questions (inconclusive: d +0.043, interval −0.030 to +0.118, with the vacuum's own reading
-  above the margin). A subset reading on 0.11.0's compile (`claude:sonnet`, during off against on, the 15 fast-tier
-  cases with an end question) gives d +0.123 [-0.018, +0.347] over 33 pairs of 9 scripts: too thin to read, and a leak
-  is not excluded. The report reads the questions with an answerable gold for its verdict and the ones whose right
-  answer is `unknown` as an abstention shift, apart.
+- **The leak check: no leak seen, a small one not excluded.** Whether asking during the job changes the end answers:
+  the full-size check on 0.11.0 (`claude:sonnet`, during on against off, every short and medium case of the helper, the
+  vacuum and the AMR) gives d -0.007, interval -0.092 to +0.079, over 180 answerable pairs of 44 scripts. That is
+  inconclusive by the rule (the upper bound is above the margin of 0.05), so a leak above +0.079 is excluded and a
+  smaller one is not. Each job's d is between -0.010 and -0.003.
 - **`unknown` on a glimpse.** Some wrong answers to an `unknown` question land on a thing seen only in glimpses too
   small to show what it is. The prompt now says that a question may name a thing never seen or not there, and a screen
   drops a question whose frames glimpsed a look-alike in the asked colour; no row was run without the sentence, so its
@@ -710,11 +709,15 @@ BibTeX or APA.
 
 Report a problem, a wrong gold or a result through [GitHub
 issues](https://github.com/DanMcInerney/SpatiotemporalBench/issues); for a result, attach its `results.json` and your
-agent's code. Before a pull request, run the free checks (model-free, no downloads, under 3 minutes) and the linter:
+agent's code. Before a pull request, run the free checks (model-free, no downloads) and the linter. The fast set is
+what CI runs on a pull request, in about a minute; the whole suite, about 3 minutes, is what CI runs nightly:
 
 ```sh
+uv run pytest -q -n auto -m "not slow"
 uv run pytest -q -n auto
-uv run ruff check src tests render examples
+uv run ruff check src tests render examples tools
 ```
+
+A slow module is one listed in `tests/slow_modules.txt`, which `tools/slow_tests.py` writes from a timed run.
 
 A new robot, job or place is a profile and a module, not a special case: see [docs/jobs.md](docs/jobs.md).

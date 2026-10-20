@@ -6,8 +6,8 @@ for what the residential look must give it. What the map, its dressing and its p
 `test_residential_blender.py`'s. Needs Blender; marked `blender`, skipped when it is not installed. The library is built
 here from the packaged manifest's procedural models of the catalog's five kinds, with the floors that are shaders
 (asphalt, the lawn, paving): nothing is downloaded. About ten seconds of Blender work (a library build, a scene build).
-Not run when this was written (the Blender lock was held by a long render): run it, and `test_residential_blender.py`
-and `test_render_city_blender.py` (the downtown's and the indoor digests must not move), under the lock."""
+The driver brings the view layer up to date before it reads the boxes: an object made in a script keeps an identity
+`matrix_world` until then, so without it every box of the scenery is its model's own, at the origin, inside the map."""
 
 from __future__ import annotations
 

@@ -20,6 +20,13 @@ Code process holds the whole conversation (stream-json on stdin, nothing saved t
   has lost the conversation, which was never saved. A usage or rate limit of the subscription arrives as the
   `result` of the turn.
 
+A memory (`codex_memory`, `--memory SPEC`) is added as it is to the Codex agent and changes no message the model is
+sent: the process has the memory's MCP server beside the tool server (every tool of it allowed) for the whole case, the
+memory's guide follows the system prompt in `--system-prompt` (the journal's first prompt stays the reference agent's:
+the guide is in the `run` event), and the sensor feed, the carried record, the store kept beside the case and the
+`memory` failure are `CodexSystem`'s, unchanged. The memory's calls are journaled as `memory_call` events
+(`claude_live`).
+
 The tokens and the cost of a turn are its own share of the session's running totals the `result` event prints
 (`codex_log.Journal`); a killed turn prints none, so then the count is a lower bound (the summary says so).
 """
@@ -48,8 +55,10 @@ class ClaudeSystem(CodexSystem):
                            "attempt": attempt})
         try:
             if kind == "start":
+                memory = None if self.memory is None else self.memory.server(self.state_dir, self.codex.model)
                 self.live = ClaudeLive(self.codex, system=self._system_prompt(), prompt=self._opening,
-                                       server=self.feed.server_config(), wake=self.feed.wake)
+                                       server=self.feed.server_config(), wake=self.feed.wake, memory=memory,
+                                       note=self.journal.note)
             else:
                 self.live.send(prompt)
         except CodexError as error:

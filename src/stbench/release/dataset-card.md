@@ -325,13 +325,10 @@ GPL-3.0-or-later: the frames and files made from it are part of this CC BY 4.0 d
 - The swapped brief of 0.4.x is retired: a job's subgoal says the true task in every frame, so a swapped assignment
   would contradict it. Task conditioning, the correct brief against the neutral one (which withholds the task and its
   subgoal), was not read for this release.
-- The leak check was not rerun at full size for this release. Whether asking during the job changes the end answers was
-  last read at full size on 0.9.0's questions, with `gpt-6.1-sol` (`stbench eval --arms during=on,off`): d = +0.043, interval [-0.030, +0.118],
-  inconclusive, with the vacuum's own reading (+0.178) above the margin. 0.10.0 asks one and a half to five times as
-  many questions during the job, so that reading does not carry over, and a leak is not excluded. A subset reading on
-  0.11.0's compile (`claude:sonnet`, on 15 dev cases with an end question) gives d +0.123 [-0.018, +0.347] over
-  33 pairs of 9 scripts: too thin to read. The report reads the answerable pairs for its verdict and the pairs whose
-  right answer is `unknown` as an abstention shift, apart.
+- The leak check, whether asking during the job changes the end answers: on 0.11.0, with `claude:sonnet` at medium
+  effort, during on against off, on every short and medium case of the helper, the vacuum and the AMR, the pooled d is
+  -0.007, interval [-0.092, +0.079], over 180 answerable pairs of 44 scripts. That is inconclusive by the rule (the
+  upper bound is above the margin of 0.05): no leak is seen, and one above +0.079 is excluded.
 - `open_heading` counts since 0.11.0, with a credit that is room to move on the one need rule; through 0.10.0 its credit
   was a cliff (a heading a few degrees off the best opening scored -0.4 to -1) and it counted in no mean. The rows' 42
   cases hold few of its questions. Only the apartment asks it.
