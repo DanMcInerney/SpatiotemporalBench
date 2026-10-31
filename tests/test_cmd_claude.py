@@ -51,7 +51,7 @@ def jsonl(path) -> list[dict]:
 
 
 def folder(tmp_path, case, name: str = "claude_sonnet"):
-    return tmp_path / "data" / "runs" / f"{name}-{case.id}"
+    return tmp_path / "runs" / f"{name}-{case.id}"
 
 
 def test_a_fake_claude_case_runs_end_to_end(tmp_path, monkeypatch, capsys):
@@ -363,7 +363,7 @@ def test_eval_runs_the_claude_agent_and_reruns_a_stopped_case_from_scratch(tmp_p
     which agent ran."""
     data = tmp_path / "data"
     case = compiled(data, short_script(1), [end_q(1)])
-    where = data / "runs" / "claude_sonnet-rgb_pose" / "cases" / case.id
+    where = tmp_path / "runs" / "claude_sonnet-rgb_pose" / "cases" / case.id
     for name in ("one", "two"):
         (tmp_path / name).mkdir()
     first, second = Fake(tmp_path / "one", {0: {"pulls": 1, "fail_late": "limit"}}), Fake(tmp_path / "two")

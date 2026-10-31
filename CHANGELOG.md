@@ -7,10 +7,71 @@ All notable changes to SpatiotemporalBench are recorded here. The format follows
 of an entry; those records are not part of the public repository. The public history starts at 0.11.0: the tags and
 branches of earlier versions that entries below mention are not published.
 
-## [Unreleased]
+## [0.11.1] - 2026-10-30
+
+A fix release with the memory features that were waiting under [Unreleased]. The renders, the 144 cases and every
+question but two are 0.11.0's. The drone's corridor question is no longer asked where its evidence frame cannot place
+the wall's foot, which removes two questions from the data; the scorer, the place a run is written, the Blender lookup
+and the tests are fixed; and `--memory`, `--compact-at` and the carried record, added since 0.11.0, are listed under
+"Added" with the memory-feed fix. No model ran again: the reference rows are 0.11.0's runs with the answers to the two
+removed questions dropped, scored again.
+
+### Changed
+
+- **The drone's corridor is asked only where its evidence frame reads the wall's foot to within C/2 at one pixel**
+  (`clear_path`, `drone/1`; [docs/families/clear_path.md](docs/families/clear_path.md), "Tied to its foot"). A ground
+  robot's corridor already had to pass this tie (`corridor_screens.error_tied`); the flier's did not, and its evidence
+  frame is the latest keyframe that saw the wall, which may be one from the nest: a camera 0.17 m up, 45 m from a wall
+  whose ground is 0.15 m, reads one pixel there as 270 m, and the credit's band then spans every answer from 22.5 m to
+  89.7 m. **The data.** Compiling the drone's 36 cases again removes exactly two questions and changes nothing else
+  (content and order): two `memory` corridors with a gold of 44.9 m, whose gold's resolution was 271.86 m and 31.93 m
+  against the drone's C/2 of 1.2 m. The questions of this release are 0.11.0's compiled data with those two rows
+  removed, so every other question keeps its id and the stored answers still score. The drone has 262 questions
+  (`clear_path` 194, `ego_mem` 68; 0.11.0: 264, `clear_path` 196), the release 1,759 (1,761), its clearance questions
+  1,072 (1,074), and the drone's clearance `memory` cell 98 (100). **The rows.** The answers the three models and the
+  floor gave to the two questions are dropped and the 42 cases scored again, with no model call. Only `downtown_a` moves
+  (headline, `now`, `memory`; 0.11.0, then 0.11.1):
+
+  | System | Headline | `now` | `memory` |
+  | --- | --- | --- | --- |
+  | `claude:opus` (medium) | +0.614, +0.609 | +0.596, +0.596 | +0.632 (46), +0.622 (44) |
+  | `claude:sonnet` (medium) | +0.366, +0.369 | +0.380, +0.380 | +0.351 (46), +0.358 (44) |
+  | `claude:haiku` (medium) | +0.185, +0.191 | +0.109, +0.109 | +0.261 (46), +0.272 (44) |
+  | `all_unknown` | +0.132, +0.137 | +0.000, +0.000 | +0.263 (46), +0.274 (44) |
+
+  Opus scored +1.00 on both questions, and sonnet, haiku and the floor answered `unknown` (0), so their removal lowers
+  opus's `memory` column and raises the others'. The `apartment_a` and `warehouse_a` rows are unchanged to the last
+  digit. Opus's full-credit share of the drone's answerable corridors falls from 11% to 7% (5 of 44, then 3 of 42), and
+  its remembered clearance cell from +0.701 to +0.681 (32 to 30 questions). The free check of the new data passes in
+  every reading, as 0.11.0's did, per job and in full. Two gate values moved: the drone's `clear_path` `separation`
+  reads +0.907 where it read +0.908, on 194 questions where it had 196, and the helper's `task_things` shortcut lead
+  reads +0.000 where it read +0.007, from the scorer fix below (the in-pool shortcuts choose their constants by the
+  score they would earn).
+- **Behaviour change: `stbench run` and `stbench eval` write their run folder to `runs/` in the current directory, not
+  to `DATASET/runs/`** ([docs/format.md](docs/format.md), [docs/eval.md](docs/eval.md), "RUNDIR"). A dataset is
+  downloaded and kept as it was published, so a run started outside it no longer changes it (started inside it, the run
+  still writes `runs/` there). `--out` names another folder, as before, and a folder under the dataset's `scripts/` or
+  `private/` is still refused. `stbench view` finds the dataset by itself only for a run inside it, so a run at the
+  default `runs/` needs `--data`. A script or a habit that reads `DATASET/runs/<system>-<case id>` must read `runs/...`
+  where it was run from.
 
 ### Fixed
 
+- **Blender is found on any system.** `STBENCH_BLENDER` first, then the `blender` on the PATH, then where the installer
+  puts it on Windows or macOS (`blender_run.blender_path`). It was a fixed Windows path.
+- **The scorer: an item inside a don't-care circle never lowers a list's credit.** `score_set.graded_set` pairs the
+  answered items outside every circle first and lets an item inside a circle take only the gold items left over, so
+  adding one can no longer lower the credit ([docs/questions.md](docs/questions.md), "A list scores per item"). The
+  scripted shortcuts of `stbench check` that choose their best constant by the score read lists differently, which moved
+  the in-pool shortcuts' `task_things` values (the helper's lead above).
+- **A huge offset answer keeps its bearing.** The bearing and the radial error are computed on scaled vectors, so an
+  answer near the float limit no longer overflows to NaN (read as 0 degrees), a place answer that large no longer raises
+  `OverflowError`, and the distance report reads the scorer's bearing. With the list fix above, no published score
+  changes: the 1,552 answers of the four reference rows, and the map reader's 388, score as before.
+- **The tests no longer break on pytest 9.2**, which rejects `pytest.approx` on nested data: floats and counts are
+  compared apart.
+- **The README's far-field example states its pixel unrounded** (13.65 cm), so its scores reproduce, and the door table
+  of [docs/question-design.md](docs/question-design.md) gives the pixels it uses.
 - **The memory's sensor feed no longer runs one frame ahead** (`--memory SPEC`, Codex and Claude alike). The harness fed
   a frame to the memory when it read it in, but serves a frame only when the next message shows whether questions join
   it, so the memory held frame k+1 while the model was shown frame k. A frame is now fed as it is served
@@ -22,6 +83,7 @@ branches of earlier versions that entries below mention are not published.
 
 ### Added
 
+- **CI also tests on macOS** (`.github/workflows/ci.yml`: Ubuntu, Windows and macOS).
 - **`--memory SPEC` and `--compact-at TOKENS` for the Claude Code agent** (`claude:<model>`; [docs/claude.md](docs/claude.md),
   "A memory beside the agent" and "Compaction"). The Codex agent's memory arm now runs on Claude Code, from the one SPEC:
   the memory's MCP server joins the case's one `claude -p` process (a second entry of `--mcp-config`, every tool allowed

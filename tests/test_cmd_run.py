@@ -40,12 +40,12 @@ def three_cases(root: Path):
 
 def test_a_baseline_runs_every_case_of_a_dataset_and_writes_its_answers_and_summary(tmp_path, capsys):
     """Contract (plan §4.4, B.1's exit check): `stbench run all_unknown CASE_DIR` on each of a synthetic dataset's three
-    cases exits 0 and writes, under `DATASET/runs/all_unknown-<case id>/`, `answers.jsonl` (one `{"qid", "answer"}` row
-    a question, in the order of the case's file) and `summary.json` (the case, its script, the system, the channel,
-    the brief, the during flag, the status, no failures, per-message wall times, the state's sizes, usage stamped
-    self-reported, whether it names a remote store, what the tokens cost and why not (a scripted baseline reports no
-    tokens, so no price), a 16-hex session and where it ran: no version, schema or price stamp). Hand-written
-    expectations. Regression caught: a smoke run that cannot be run or read back, or a summary
+    cases exits 0 and writes, under `runs/all_unknown-<case id>/` of the current directory, `answers.jsonl` (one
+    `{"qid", "answer"}` row a question, in the order of the case's file) and `summary.json` (the case, its script, the
+    system, the channel, the brief, the during flag, the status, no failures, per-message wall times, the state's sizes,
+    usage stamped self-reported, whether it names a remote store, what the tokens cost and why not (a scripted baseline
+    reports no tokens, so no price), a 16-hex session and where it ran: no version, schema or price stamp).
+    Hand-written expectations. Regression caught: a smoke run that cannot be run or read back, or a summary
     that drops what a result is stamped with (the four resource keys `stbench eval` reads M5's way)."""
     cases = three_cases(tmp_path)
     assert len({c.script.id for c in cases}) == 3
@@ -179,9 +179,10 @@ def test_a_case_that_ends_exits_1_and_one_refused_before_start_exits_2(tmp_path,
 
 def test_the_output_folder_is_never_under_the_datasets_scripts_or_private(tmp_path, capsys):
     """Contract (plan §4.4): `--out` under `DATASET/scripts/` or `DATASET/private/` (the agent-facing files and the
-    truth) is refused with exit 2, and the default folder is `DATASET/runs/<system>-<case id>` with every character of
-    the system outside [A-Za-z0-9._-] turned into `_`. Regression caught: a run that writes its answers among the
-    truth (or among what a system is shown), or a system name that makes a path of its own."""
+    truth) is refused with exit 2, and the default folder is `runs/<system>-<case id>` in the current directory, never
+    in the dataset, with every character of the system outside [A-Za-z0-9._-] turned into `_`. Regression caught: a
+    run that writes its answers among the truth (or among what a system is shown) or anywhere in the dataset it
+    ran on, or a system name that makes a path of its own."""
     case = scored_case(tmp_path, hand20(), QUESTIONS)
     for inside in (case.script.root / "runs", case.private / "runs", case.dataset / "scripts",
                    case.dataset / "private"):
@@ -190,6 +191,7 @@ def test_the_output_folder_is_never_under_the_datasets_scripts_or_private(tmp_pa
         assert not inside.exists() or inside in (case.dataset / "scripts", case.dataset / "private")
     scripted, file = scored_scripted(tmp_path / "s")
     assert run(f"{file}:Scripted", scripted.private, "--local") == 0
-    folders = [p.name for p in (scripted.dataset / "runs").iterdir()]
+    assert not (scripted.dataset / "runs").exists()
+    folders = [p.name for p in (tmp_path / "runs").iterdir()]
     assert len(folders) == 1 and re.fullmatch(r"[A-Za-z0-9._-]+-" + scripted.id, folders[0])
     assert folders[0].endswith("scripted.py_Scripted-" + scripted.id)

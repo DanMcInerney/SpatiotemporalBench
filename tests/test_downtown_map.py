@@ -189,7 +189,8 @@ def test_the_roadways_are_nineteen_and_twelve_metres_between_their_sidewalks(cit
     south, north = kerbs["F05"], kerbs["F01"]
     assert (south.center[1] + 2.0, north.center[1] - 2.0) == (4.0, 23.0)  # kerb to kerb: 19 m
     lanes = sorted((f.center[1] - 1.3, f.center[1] + 1.3) for f in (kerbs["F06"], kerbs["F03"]))
-    assert lanes == pytest.approx([(4.0, 6.6), (20.4, 23.0)]) and lanes[1][0] - lanes[0][1] >= 9.5
+    assert [edge for lane in lanes for edge in lane] == pytest.approx([4.0, 6.6, 20.4, 23.0])
+    assert lanes[1][0] - lanes[0][1] >= 9.5
     west, east = kerbs["F09"], kerbs["F10"]
     assert (west.center[0] + 2.0, east.center[0] - 2.0) == (19.0, 31.0)  # kerb to kerb: 12 m
 

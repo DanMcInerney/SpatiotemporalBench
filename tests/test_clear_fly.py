@@ -130,14 +130,15 @@ def test_below_the_fly_floor_nothing_is_asked():
     """Contract (plan L2, review 2.4, final review S2): the corridor is asked only when the base is at least
     `JobSpec.fly_floor_m` up (the kit's 8.35 m: a street lamp's 7.95 m head, the body's half height and a margin), so
     the landed drone (0.27 m), the one beside the street trees' crowns (7.01 m) and the one at a lamp's head (7.3 m)
-    are never asked; one at exactly the floor is. A job with no floor asks at any height. Regression caught: the
+    are never asked; one at exactly the floor is. A job with no floor asks below it too, where the camera reads the
+    wall's foot to within C/2 (1.1 m up: 1.02 m; the tie of the next test). Regression caught: the
     landed drone's corridor, whose gold (walls only) is wrong beside benches, planters, people and cars, or a floor
     that lets a lamp in the way."""
     seen = {ASK: face(19.7, [0.0])}
     for z in (0.27, 7.01, 7.3, 8.34):
         assert moment(seen, base_z=z) is None, z
     assert moment(seen, base_z=8.35).answerable[0].gold == {"type": "number", "value": 19.05}
-    assert moment(seen, base_z=0.27, job=replace(JOB, fly_floor_m=None)).answerable
+    assert moment(seen, base_z=1.1, job=replace(JOB, fly_floor_m=None)).answerable
 
 
 def test_the_phase_must_be_one_of_the_jobs_clear_phases():
@@ -215,6 +216,35 @@ def test_the_resolution_is_read_from_the_evidence_frame_and_the_ground_under_the
                                                "grey", True, ()),))
     (r,) = moment({ASK: face(19.7, [0.0])}, direction=0, m=raised).answerable
     assert r.tolerances["resolution_m"] == pytest.approx(0.1326, abs=1e-3)
+
+
+def test_a_wall_foot_the_evidence_camera_reads_coarser_than_half_the_clearance_is_not_asked():
+    """Contract (the corridor tie, `corridor_screens.error_tied`): an answerable corridor is asked only where one pixel
+    at the wall's foot, from the evidence frame's camera, is at most C/2 = 1.2 m, as a ground corridor's stopper must
+    be; a camera level with the foot's ground has no bound and is never asked. Hand cases, the wall `WE` 19.7 m on
+    seen by the look point's own frame, the camera 0.1 m under the base (no fly floor): base 1.1 m up, h 1.0:
+    radial (19.7^2 + 1.0^2) / (1.0 x 381.36) = 1.0203 and lateral 19.7 / 381.36 = 0.0517 give 1.0216 m, asked; base
+    0.8 m up, h 0.7: 1.4557 and 0.0517 give 1.457 m, not asked; base 0.27 m up (the drone on its nest, h 0.17): 5.99 m,
+    not asked;
+    the same with a 0.18 m plaza under the wall (h 0.01, within `CONTACT_M`): no bound, not asked; a wall no frame saw
+    stays an `unknown` row from the same low base. Regression caught: a drone that looks from the ground before
+    takeoff asked a corridor its camera reads to hundreds of metres (a gold of 44.9 m whose full-credit band ran from
+    22.5 m to 89.7 m), or a camera level with the ground read as the finest resolution."""
+    low = replace(JOB, fly_floor_m=None)
+    (c,) = moment({ASK: face(19.7, [0.0])}, job=low, base_z=1.1).answerable
+    assert c.tolerances["resolution_m"] == pytest.approx(1.0216, abs=1e-3)
+    assert moment({ASK: face(19.7, [0.0])}, job=low, base_z=0.8) is None
+    assert moment({ASK: face(19.7, [0.0])}, job=low, base_z=0.27) is None
+    plaza = replace(MAP, furniture=(Furniture("F9", "plaza", "plaza", "fixed", (19.7, 0.0), (10.0, 10.0, 0.18), 0.0,
+                                              "grey", True, ()),))
+    assert moment({ASK: face(19.7, [0.0])}, job=low, base_z=0.27, m=plaza) is None
+    script = flight(base_z=0.27)
+    w = fly_world(script, {ASK: face(19.7, [0.0])}, a=1, job=low)
+    assert clear_fly.foot_rho(w, ASK, (19.7, 0.0)) == pytest.approx(5.99, abs=1e-2)
+    on_plaza = World(fly_inputs(script, job=low, m=plaza), record(script, a=1))
+    assert clear_fly.foot_rho(on_plaza, ASK, (19.7, 0.0)) is None
+    (u,) = moment({}, job=low, base_z=0.27).unknown
+    assert u.gold == {"type": "unknown"}
 
 
 def test_a_look_point_may_be_any_frame():

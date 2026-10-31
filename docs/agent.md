@@ -223,7 +223,9 @@ heading with less room than the body needs, or into floor never seen, scores as 
 
 A list of places is credited per item: each thing in the list earns the same four quarters at the job's matching radius,
 grown by the largest listed thing's half-length beyond 0.25 m whatever the camera saw, the places paired one to one
-with the things in the pairing whose summed credit is largest. A list item is a place (0.11.0): a pair earns its
+with the things in the pairing whose summed credit is largest (the places outside every don't-care circle first; those
+inside one take only the things left over, so they can only add credit, [questions.md](questions.md), "A list scores per
+item"). A list item is a place (0.11.0): a pair earns its
 direction quarter within the matching radius of the thing, as a single place does within R, and nowhere else; before,
 any pair within four matching radii earned it, which paid a prior that knew the layout. A thing left out costs a whole
 thing and a place that matches no thing half of one, unless it is at a thing the question counts neither way. When
@@ -352,17 +354,18 @@ uv run stbench run my_agent/agent.py:MyAgent DATASET/private/<case id>
 ```
 
 It writes `answers.jsonl` (`{"qid", "answer"}` in the order of the case's questions), `rows.jsonl` (one scored row for
-each gold of the case) and `summary.json` under `DATASET/runs/<system>-<case id>/`, or `--out`, and prints the headline.
-The summary says how the case ended, where it ran and what you reported spending, and holds a `scores` block: the
-headline (the mean of the `now` and `memory` columns, each the mean reported score over its own questions, weighted
-equally; a question is `now` when the latest frame alone gives its gold, which is what you hold at the ask, and `memory`
-when an earlier frame is needed), the same split by scope, family, own-path reference and the other dimensions, and the counts of correct,
-partial, wrong and abstained answers (`docs/format.md` has the keys). A run scores what it ran, so a case with no
-`gold.jsonl` (one `stbench compile` has not reached) is refused before anything is sent. The exit code is 0 for a
-complete case; 1 for one that ended early, for a run that could not be scored (its answers and summary are kept) and for
-an invalid run (a Codex run whose leak scan hit, `docs/codex.md`); and 2 for a run that was refused before anything was
-sent, a case with no gold included. A baseline (`all_unknown`, ...) runs the same way by its name, and a reference agent
-as `<agent>:<model>` (`docs/codex.md`; `claude:<model>` is the same agent on Claude Code, `docs/claude.md`).
+each gold of the case) and `summary.json` under `runs/<system>-<case id>/` in the current directory, or `--out`, and
+prints the headline. The summary says how the case ended, where it ran and what you reported spending, and holds a
+`scores` block: the headline (the mean of the `now` and `memory` columns, each the mean reported score over its own
+questions, weighted equally; a question is `now` when the latest frame alone gives its gold, which is what you hold at
+the ask, and `memory` when an earlier frame is needed), the same split by scope, family, own-path reference and the
+other dimensions, and the counts of correct, partial, wrong and abstained answers (`docs/format.md` has the keys). A run
+scores what it ran, so a case with no `gold.jsonl` (one `stbench compile` has not reached) is refused before anything is
+sent. The exit code is 0 for a complete case; 1 for one that ended early, for a run that could not be scored (its
+answers and summary are kept) and for an invalid run (a Codex run whose leak scan hit, `docs/codex.md`); and 2 for a run
+that was refused before anything was sent, a case with no gold included. A baseline (`all_unknown`, ...) runs the same
+way by its name, and a reference agent as `<agent>:<model>` (`docs/codex.md`; `claude:<model>` is the same agent on
+Claude Code, `docs/claude.md`).
 
 To run a system over many cases, `stbench eval SYSTEM --data DATASET` takes the same three kinds of SYSTEM and the same
 options (`--channel`, `--brief`, `--during`, `--local`, `--timeout`, `--reasoning`) over the dataset's compiled cases:

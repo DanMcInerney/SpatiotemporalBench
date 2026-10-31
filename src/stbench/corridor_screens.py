@@ -12,11 +12,11 @@ keyframes, so a gold over a window can call them.
   (`grid.reach`: inside the corridor and the band), in that cell: the one the body touches first is the stop and its
   instance the stopper. The stopper is *tied* when a point of that instance, within `max(CONTACT_M, slant / fy)` of the
   floor, is touched within C/2 after the stop (inside the corridor widened by C/2), and its one-pixel error `(d^2 + H^2)
-  / (H fy)` is at most C/2 (the ego families' contact tie: a table top whose legs stand 0.4 m behind its edge is not
-  tied, a box on the floor is). It must be *visible*: structure (no entity), a `fixed` or `structure` entity, or a
-  thing recognisable in that frame. A gold at the cap needs neither. The record
-  also carries the stopper's contact points' least one-pixel error and how far beyond the stop that contact lies: the
-  resolution of the gold (`credit_kernel`).
+  / (H fy)` is at most C/2 (`error_tied`, which a flier's wall passes too: `clear_fly`; the ego families' contact tie:
+  a table top whose legs stand 0.4 m behind its edge is not tied, a box on the floor is). It must be *visible*:
+  structure (no entity), a `fixed` or `structure` entity, or a thing recognisable in that frame. A gold at the cap
+  needs neither. The record also carries the stopper's contact points' least one-pixel error and how far beyond the
+  stop that contact lies: the resolution of the gold (`credit_kernel`).
 - **The side** (`side_stable`, `CLEAR_SIDE_M`). Not asked when the body 0.01 m narrower or wider on each side (a disc's
   radius 0.01 m smaller or larger) gives a gold more than C/2 from it (an `unknown` there counts as moved): an obstacle
   within 1 cm of the body's side falls either way (`grid.corridor_clear`). For a disc the screen is the more needed
@@ -111,6 +111,12 @@ def _touched(w: World, along: np.ndarray, across: np.ndarray, widen: float = 0.0
     return np.array([math.inf if t is None else t for t in out])
 
 
+def error_tied(error_m: float, c_m: float) -> bool:
+    """Whether a floor contact read with a one-pixel error of `error_m` is tied: within C/2 of where it is, `c_m` the
+    job's clearance. The one tie a corridor's stopper (here) and a flier's wall (`clear_fly`) must pass."""
+    return error_m <= c_m / 2 + EPS
+
+
 class Stopper(NamedTuple):
     """What `stopper` reads of the thing a corridor stops at (the module docstring). `tied` and `visible` are the two
     verdicts of the stopper screen (`stopper_tied` is both); `error_m` is the stopper's contact points' least one-pixel
@@ -169,7 +175,7 @@ def stopper(w: World, start: tuple[float, float], heading: float, gold: dict, st
     errors = (d2 + h * h) / (h * w.cam.fy)
     least = int(np.argmin(errors))
     error, gap = float(errors[least]), max(0.0, float(reach[least]) - stop)
-    if error > c_m / 2 + EPS:
+    if not error_tied(error, c_m):
         return Stopper(False, False, error, gap)
     visible = not who or w.tl.entity(who).mobility in ("fixed", "structure") or j in w.recognised(who)
     return Stopper(True, visible, error, gap)

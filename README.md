@@ -21,8 +21,8 @@ perception and memory both, and nothing else: not control, not free text, not mu
 things the robot saw earlier are, from seconds to hours before. It does not test change over time. No question asks
 what moved, appeared or went since an earlier pass, or where a moving person is going; [Limits](#limits) says why.
 
-> **Version 0.11.0.** Four jobs on three places: 64 rendered shifts, 144
-> cases, 1,761 questions. One public split, with the gold public and no held-out set. The
+> **Version 0.11.1.** Four jobs on three places: 64 rendered shifts, 144
+> cases, 1,759 questions. One public split, with the gold public and no held-out set. The
 > reference rows are dev rows, scored on the shifts the questions were refined on (see [Limits](#limits)); the
 > reference models are Claude models, where 0.10.0's were Codex models. To run it, go to the
 > [Quickstart](#quickstart).
@@ -241,7 +241,7 @@ medium, 4 long):
 | `vacuum/2` | `apartment_a` | 16 | 16 / 16 / 4 | 711 | 6,460 |
 | `helper/1` | `apartment_a` | 16 | 16 / 16 / 4 | 541 | 3,157 |
 | `amr/1` | `warehouse_a` | 16 | 16 / 16 / 4 | 245 | 4,679 |
-| `drone/1` | `downtown_a` | 16 | 16 / 16 / 4 | 264 | 2,534 |
+| `drone/1` | `downtown_a` | 16 | 16 / 16 / 4 | 262 | 2,534 |
 
 ## How a case runs
 
@@ -380,12 +380,13 @@ or a cord the brush could catch within 30 cm of its front edge left out of a lis
 robot's own kind: −3. `unknown` is never one. Every validity check reads the score without this term
 ([docs/question-design.md](docs/question-design.md), section 6).
 
-**A set scores per item.** The answered places are paired one to one with the things by the largest summed credit, each
-earning its own four quarters at its own resolution. A missed thing costs one and a false place half, and a place inside
-a don't-care circle counts neither way. Each item is a place, so it earns its direction quarter within the matching
-radius of the thing and nowhere else (0.11.0). Where there was nothing to list, the empty list is the one thing, and
-each false place dilutes it: its credit is 1 over 1 plus half the false places. The list is perfect only when it holds
-every thing and nothing else.
+**A set scores per item.** The answered places outside every don't-care circle are paired one to one with the things by
+the largest summed credit, each earning its own four quarters at its own resolution; the places inside a circle are then
+paired with the things left over, so they can only add credit. A missed thing costs one and a false place half, and a
+place inside a don't-care circle counts neither way. Each item is a place, so it earns its direction quarter within the
+matching radius of the thing and nowhere else (0.11.0). Where there was nothing to list, the empty list is the one
+thing, and each false place dilutes it: its credit is 1 over 1 plus half the false places. The list is perfect only when
+it holds every thing and nothing else.
 
 **A decision scores by its regret,** the run it gives up against the best heading, in metres, on the same rule with g the
 best run. The way to a remembered thing (`way_to`) is scored the same way on the progress each heading makes: how much
@@ -406,7 +407,7 @@ under T, which means there is no room to move at all.
   reported score is −2, where `unknown` would have scored 0.
 
 **The far field.** The same helper is asked how far its body could move toward a door 5 m away. One pixel there is ρ =
-13.7 cm, and the margin is not C = 15 cm but a tenth of the distance, 0.50 m.
+13.65 cm, and the margin is not C = 15 cm but a tenth of the distance, 0.50 m.
 - The answer 4.5 m is 0.5 m short: the thing and amount quarters are whole, precision is 0, the credit is 3/4 and the
   score +0.50.
 - The answer 4.0 m is 1.0 m short, twice the margin: the amount quarter is gone, the credit is 1/2 and the score 0, as
@@ -488,6 +489,11 @@ downtown). Every system ran the same 42, the same cases as 0.10.0's rows, chosen
 and not by any outcome. The intervals are wide for it, and rows on every case are left for a later revision.
 Coverage: `all_unknown`: 42 of 42 cases; `claude:haiku` (medium): 42 of 42 cases; `claude:sonnet` (medium): 42 of 42 cases; `claude:opus` (medium): 42 of 42 cases.
 
+**The rows are 0.11.0's runs, less two questions.** 0.11.1 no longer asks two of the drone's corridor questions
+([CHANGELOG](CHANGELOG.md)), so the answers the models gave to them are dropped and the runs are scored again; no model
+ran again. Only `downtown_a` moves: opus +0.614 to +0.609, sonnet +0.366 to +0.369, haiku +0.185 to +0.191 and the floor
++0.132 to +0.137.
+
 **These are dev rows, not a held-out confirmation.** They are scored on the 64 shifts the questions and screens were
 refined on. Every repair made there fixed a broken instrument and applies to every job, but it was made on this data.
 
@@ -501,10 +507,10 @@ refined on. Every repair made there fixed a broken instrument and applies to eve
 | `warehouse_a` | `claude:sonnet` (medium) | +0.307 [+0.077, +0.499] | +0.360 [+0.028, +0.652] over 24 | +0.254 [-0.008, +0.486] over 40 | 11 |
 | `warehouse_a` | `claude:opus` (medium) | +0.419 [+0.188, +0.638] | +0.501 [+0.276, +0.699] over 24 | +0.338 [-0.002, +0.686] over 40 | 11 |
 | `warehouse_a` | `all_unknown` | +0.056 [+0.000, +0.125] | +0.000 [+0.000, +0.000] over 24 | +0.111 [+0.000, +0.250] over 40 | 11 |
-| `downtown_a` | `claude:haiku` (medium) | +0.185 [+0.019, +0.325] | +0.109 [-0.079, +0.318] over 22 | +0.261 [+0.008, +0.467] over 46 | 11 |
-| `downtown_a` | `claude:sonnet` (medium) | +0.366 [+0.213, +0.505] | +0.380 [+0.201, +0.586] over 22 | +0.351 [+0.111, +0.534] over 46 | 11 |
-| `downtown_a` | `claude:opus` (medium) | +0.614 [+0.517, +0.717] | +0.596 [+0.463, +0.788] over 22 | +0.632 [+0.506, +0.781] over 46 | 11 |
-| `downtown_a` | `all_unknown` | +0.132 [+0.078, +0.219] | +0.000 [+0.000, +0.000] over 22 | +0.263 [+0.156, +0.438] over 46 | 11 |
+| `downtown_a` | `claude:haiku` (medium) | +0.191 [+0.023, +0.325] | +0.109 [-0.079, +0.318] over 22 | +0.272 [+0.012, +0.473] over 44 | 11 |
+| `downtown_a` | `claude:sonnet` (medium) | +0.369 [+0.216, +0.514] | +0.380 [+0.201, +0.586] over 22 | +0.358 [+0.109, +0.560] over 44 | 11 |
+| `downtown_a` | `claude:opus` (medium) | +0.609 [+0.509, +0.713] | +0.596 [+0.463, +0.788] over 22 | +0.622 [+0.480, +0.774] over 44 | 11 |
+| `downtown_a` | `all_unknown` | +0.137 [+0.082, +0.225] | +0.000 [+0.000, +0.000] over 22 | +0.274 [+0.165, +0.450] over 44 | 11 |
 
 - The floor's `memory` is the mean, over the memory cells, of the share of each cell's questions whose right answer is
   `unknown`, which scores +1 for it. Its `now` is 0: every `now` question has an answer in view.
@@ -514,7 +520,7 @@ refined on. Every repair made there fixed a broken instrument and applies to eve
 - Full credit is rare, as designed: opus earned it on 22% of the answerable questions, sonnet on 13% and haiku on 6%.
 - The hardest questions are the helper's remembered corridors (every model below zero), the heading with room to
   turn into, and the AMR's list of things it passed. Downtown's corridors are bounded only by building walls, and opus
-  scores +0.70 on the remembered ones; making the drone harder needs new data (people at the drop, obstacles at flight
+  scores +0.68 on the remembered ones; making the drone harder needs new data (people at the drop, obstacles at flight
   height), which this release does not render.
 
 The [technical report](docs/report.md) gives each place's cells, the families, the case lengths, the kinds and the
@@ -527,10 +533,10 @@ The rules are in [docs/vision.md](docs/vision.md) and [docs/methodology.md](docs
 are in [docs/eval.md](docs/eval.md) and [docs/questions.md](docs/questions.md).
 
 On the 0.10.0 compile (1,701 questions), `stbench check` passed in every reading, with no instrument broken. On the
-0.11.0 compile (1,761 questions) the free check of the release passes in every reading on every job: `ALL GATES PASS`
-and `EVIDENCE VERDICT PASSES`, per job and in full. The largest lead a shortcut has over `all_unknown` is +0.04 on
-`open_heading` for the helper and +0.00 for the vacuum, +0.03 on `way_to`, +0.01 on the helper's `task_things` and on
-`tangle_ahead`, and +0.00 on `approach_mem`; the gate's line is +0.10. The checks are:
+0.11.1 compile (1,759 questions) the free check of the release passes in every reading on every job: `ALL GATES PASS`
+and `EVIDENCE VERDICT PASSES`, per job and in full (0.11.0's, on 1,761 questions, did too). The largest lead a shortcut
+has over `all_unknown` is +0.04 on `open_heading` for the helper and +0.00 for the vacuum, +0.03 on `way_to`, +0.01 on
+`tangle_ahead`, and +0.00 on the helper's `task_things` and on `approach_mem`; the gate's line is +0.10. The checks are:
 
 - **Every gold is computed by code** from the world timeline and what the camera recorded, and names the frames it
   rests on. Nothing the robot did not see changes a gold.
@@ -603,7 +609,7 @@ checkout, run `uv sync --extra dev` and write `uv run stbench ...` for `stbench 
 **Get the data**, about 2 GB: the frames, the cases, and the questions and gold.
 
 ```sh
-hf download DanMcInerney/spatiotemporalbench --repo-type dataset --revision v0.11.0 --local-dir data
+hf download DanMcInerney/spatiotemporalbench --repo-type dataset --revision v0.11.1 --local-dir data
 ```
 
 **Run the free reference** over the short and medium cases, in about a minute: the floor.
@@ -620,7 +626,7 @@ the same command skips finished cases.
 stbench eval codex:gpt-6.1-sol --data data --select length=short --select length=medium --reasoning medium --workers 9 --out runs/sol
 ```
 
-**Or run it on Claude Code**, as 0.11.0's reference rows were (`--reasoning medium`). The same agent, the same options
+**Or run it on Claude Code**, as the reference rows were (`--reasoning medium`). The same agent, the same options
 and the same files, through the `claude` CLI on your own Claude Code login (the subscription's quota, or an API key):
 `haiku`, `sonnet`, `opus` or a full `claude-...` id, with `--reasoning` as `--effort`. Switching between the two is the
 prefix of the system name ([docs/claude.md](docs/claude.md)).
@@ -660,7 +666,8 @@ stbench eval my_agent/agent.py:MyAgent --data data --local --select length=short
 
 `--local` runs your agent as a plain subprocess, stamped `sandbox: none` and scored as unverified. Without it the agent
 runs in the Docker sandbox, which is the verified mode. Your agent may keep any memory it likes: only its answers count,
-and what it spent is reported beside them.
+and what it spent is reported beside them. Both commands write their run folder under `runs/` in the current
+directory (`--out` names another), so run them from outside the dataset to leave it as it was downloaded.
 
 **Look at the results.** Each run folder holds `results.md` (one section per place) and `results.json`.
 

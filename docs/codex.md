@@ -49,7 +49,7 @@ model id comes from the command line and goes nowhere else: nothing in the agent
 | `--timeout SECONDS` | Seconds the model may take, from being served an item to its next `next_frame` call (default: each message's own, `stream_protocol.TIMEOUTS`: 600 s for a task, a frame and a during ask, 3,600 s for the end ask). Past it the exec is killed with what it started and the case ends as `timeout`. |
 | `--memory SPEC` | A memory store beside the agent's own context ([a memory](#a-memory-beside-the-reference-agent---memory-spec)). Refused on `detections`, with `--text-only` and for agents other than `codex:` and `claude:`. |
 | `--compact-at TOKENS` | Force Codex to compact the thread once its context passes TOKENS (a whole number, at least 1), earlier than Codex's own limit: `-c model_auto_compact_token_limit=TOKENS` on every exec, the resume included ([compaction](#how-a-run-goes)). For experiments on memory beyond the context; refused for agents other than `codex:` and `claude:` (Claude Code takes the same option through its own variables, claude.md). |
-| `--out DIR` | Where the files below go (default `DATASET/runs/codex_<model>-<case id>`; never under the dataset's `scripts/` or `private/`). |
+| `--out DIR` | Where the files below go (default `runs/codex_<model>-<case id>` in the current directory; never under the dataset's `scripts/` or `private/`). |
 
 A folder that already holds a `codex.calls.jsonl` refuses the run (exit 2): a Codex call is not recorded for reuse, so a
 run cannot be replayed, and the journal of one run must not be mixed with another's. Remove the folder, or choose another

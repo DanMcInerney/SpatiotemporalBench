@@ -20,17 +20,16 @@ CASE_DIR is `DATASET/private/<cid>`. SYSTEM is one of:
   any other exception it raises exits 1. A runner finds `args.out` already set (the folder it may write its own files
   to, made before it is called) and writes nothing else of `stbench run`'s.
 
-It writes under `--out` (default `DATASET/runs/<system>-<case id>/`, with `-text-only` and `-memory-<SPEC's stem>` added
-when set, never under the dataset's `scripts/` or `private/`)
-`answers.jsonl` (`{"qid", "answer"}` in the order of the case's questions: a question the harness could not get an
-answer for holds `stream_protocol.failed(reason)`), `rows.jsonl` (one scored row a gold: `suite.score_rows`) and
-`summary.json` (what was run, how it ended, wall time and state size, usage as the system reported it, whether that
-names a remote store, what the tokens cost by the price table (never a figure of the system's own) and why not when
-they cannot be priced, where it ran, and `scores`: the headline, the splits and the outcome counts of the rows). The
-brief variant and the during flag are options of the run, never part of the case; with `--during off` the during
-questions were not asked and have no row. A run scores what it ran, so a case with no
-`gold.jsonl` is refused. Exit 0 when the case completed, 1 when it ended early, 2 when the run was refused before
-anything was sent.
+It writes under `--out` (default `runs/<system>-<case id>/` in the current directory, so a run started outside the
+dataset does not change it, with `-text-only` and `-memory-<SPEC's stem>` added when set, never under the dataset's
+`scripts/` or `private/`) `answers.jsonl` (`{"qid", "answer"}` in the order of the case's questions: a question the
+harness could not get an answer for holds `stream_protocol.failed(reason)`), `rows.jsonl` (one scored row a gold:
+`suite.score_rows`) and `summary.json` (what was run, how it ended, wall time and state size, usage as the system
+reported it, whether that names a remote store, what the tokens cost by the price table (never a figure of the system's
+own) and why not when they cannot be priced, where it ran, and `scores`: the headline, the splits and the outcome counts
+of the rows). The brief variant and the during flag are options of the run, never part of the case; with `--during off`
+the during questions were not asked and have no row. A run scores what it ran, so a case with no `gold.jsonl` is
+refused. Exit 0 when the case completed, 1 when it ended early, 2 when the run was refused before anything was sent.
 
 `stbench eval` runs many cases through the same pieces: `classify` and `resolve` say what SYSTEM is and build its
 runner, `write_run` writes each case's three files, and `refuse_truth_folder` keeps an output folder out of the truth.
@@ -102,6 +101,12 @@ def token_limit(text: str) -> int:
     return int(text)
 
 
+def default_out(name: str) -> Path:
+    """The default run folder `runs/<name>` under the current directory: a run is not written into the dataset, which
+    is downloaded and kept as it was published, unless it is started inside it. `run` and `eval` both name it here."""
+    return Path("runs") / name
+
+
 def safe_name(text: str) -> str:
     """`text` with every character outside [A-Za-z0-9._-] turned into `_`: a system's name as a folder name."""
     return re.sub(r"[^A-Za-z0-9._-]", "_", text)
@@ -117,12 +122,11 @@ def refuse_truth_folder(out: Path, dataset: Path) -> Path:
 
 
 def _out_dir(args: argparse.Namespace, case: CasePaths) -> Path:
-    """`--out`, or `DATASET/runs/<system>-<case id>` with the system as `safe_name`; Refused under the dataset's
+    """`--out`, or `runs/<system>-<case id>` (`default_out`) with the system as `safe_name`; Refused under the dataset's
     `scripts/` or `private/`. A `--text-only` run adds `-text-only` and a run with a memory `-memory-<SPEC's stem>`, so
     neither can land in a plain camera run's folder."""
     suffix = ("-text-only" if getattr(args, "text_only", False) else "") + memory_suffix(args)
-    return refuse_truth_folder(args.out or case.dataset / "runs" / f"{safe_name(args.system)}-{case.id}{suffix}",
-                               case.dataset)
+    return refuse_truth_folder(args.out or default_out(f"{safe_name(args.system)}-{case.id}{suffix}"), case.dataset)
 
 
 def _streaming(make: Callable[[Path, Path], System]) -> Runner:
@@ -344,5 +348,5 @@ def register(sub) -> None:
                    help="codex or claude agent only: compact the thread past this many tokens "
                         "(default: the agent CLI's own limit)")
     r.add_argument("--out", type=Path, help="the folder for answers.jsonl, rows.jsonl and summary.json (default "
-                                            "DATASET/runs/<system>-<case id>)")
+                                            "runs/<system>-<case id> in the current directory)")
     r.set_defaults(func=_run)

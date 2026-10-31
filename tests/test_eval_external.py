@@ -79,7 +79,7 @@ def test_eval_runs_the_codex_agent_on_the_detections_channel(tmp_path, monkeypat
     monkeypatch.setattr(cmd_codex, "make_codex", lambda model, reasoning: fake.new(model=model,
                                                                                          reasoning=reasoning))
     assert cli("codex:fake-model", "--data", data, "--channel", "detections", "--reasoning", "medium") == 0
-    doc = results(data / "runs" / "codex_fake-model-detections")
+    doc = results(tmp_path / "runs" / "codex_fake-model-detections")
     (done,) = doc["cases"]
     assert (doc["channel"], done["id"], done["status"]) == ("detections", case.id, "complete")
     (only,) = fake.execs()
@@ -97,7 +97,7 @@ def test_a_codex_case_reruns_from_scratch(tmp_path, monkeypatch):
     resume, a stale journal mixed into a rerun, or an effort that never reaches the results."""
     data = tmp_path / "data"
     case = compiled(data, short_script(1), [end_q(1)])
-    folder = data / "runs" / "codex_fake-model-rgb_pose" / "cases" / case.id
+    folder = tmp_path / "runs" / "codex_fake-model-rgb_pose" / "cases" / case.id
     for name in ("one", "two"):
         (tmp_path / name).mkdir()
     first, second = Fake(tmp_path / "one", {0: {"pulls": 1, "fail_late": "limit"}}), Fake(tmp_path / "two")

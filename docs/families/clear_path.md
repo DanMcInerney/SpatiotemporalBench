@@ -18,7 +18,7 @@ verdict until then, and the cause was the draw and not the place (below, "The he
 | | |
 | --- | --- |
 | Category | C1 Room to move |
-| Asked | during, at a look point drawn from the job's slot table (`JobSpec.look_shares`): the drone's first slot at 60%, the helper's first slot at 50% beside `closest_approach`, the vacuum's first slot at 50% beside `tangle_ahead`. The AMR does not ask it (below). The direction is drawn from the job's declared `JobSpec.clear_directions`: the helper's ahead, back, left and right, the vacuum's ahead, back and left, the drone's ahead and back. Only where the job's `clear_phases` hold the point's status phase, and for a flier also where the base is at least `fly_floor_m` up |
+| Asked | during, at a look point drawn from the job's slot table (`JobSpec.look_shares`): the drone's first slot at 60%, the helper's first slot at 50% beside `closest_approach`, the vacuum's first slot at 50% beside `tangle_ahead`. The AMR does not ask it (below). The direction is drawn from the job's declared `JobSpec.clear_directions`: the helper's ahead, back, left and right, the vacuum's ahead, back and left, the drone's ahead and back. Only where the job's `clear_phases` hold the point's status phase, and for a flier also where the base is at least `fly_floor_m` up and, for an answerable corridor, the evidence frame reads the wall's foot to within C/2 at one pixel (0.11.1, below) |
 | Text (slots) | ground, ahead: "If you drove straight ahead now, how far could your body go before it touched anything? Answer from what you have seen, in metres from the front of your body; answer {cap} if nothing is within {cap} m." Back: "If you reversed straight back now, ... in metres from the back of your body; ..." Left or right: "If you turned in place to face your {left \| right} and then drove straight, how far could your body go before it touched anything? Answer from what you have seen, in metres from the front of your body; ...". Flier: "If you flew straight {ahead \| back} now at this height, how far could your body go before it touched anything you have seen? Answer in metres from the edge of your body." (`mode`, `direction`, `cap`) |
 | Answer, credit | `number` or `unknown`; `graded` on the error against the job's clearance C, or a tenth of the gold where that is more (0.11.0): the four quarters ([questions.md](../questions.md), "Credit"). The harmful side is an answer longer than the gold (`harm` `over`: the need is halved), the direction quarter is the same side of `T = L + C` (the body's length plus C) and, where the gold is at least `T`, within a factor of two. The row's `resolution_m` is the largest of the grid's 2 cm sub-cell, the stopper's floor contact error and the tie gap; the flier's is one pixel at the wall's foot. The catastrophe tolerance (reported score only) is `over` with `threshold_m` = `T`: a corridor said longer than it is counts only where the true one is under `T` and the answer is not (final review S5) |
 | Scope, `needs` | by evidence. Ground: `now` when the corridor over frame k's own cells (the latest frame) gives the same number as the window's within the row's resolution, else `memory` (an `unknown` gold is `memory`). Flier: `now` exactly when the latest frame saw the wall the body meets, else `memory`. See, pose |
@@ -189,6 +189,13 @@ that frame reaches.
   continues upwards; every wall here is 18.9-44.1 m tall with no opening, so the inference is sound for this place.
 - **The resolution** is one pixel at the wall's foot from the evidence frame (`rules.resolution_m`, the ground z from the
   map's ground under the hit), at least 2 cm.
+- **Tied to its foot** (0.11.1). The flier's corridor passes the tie the ground's stopper does
+  (`corridor_screens.error_tied`): an answerable corridor is asked only where that resolution is at most C/2, and never
+  where it has no bound. The evidence is the latest keyframe that saw the wall, which may be one from the nest: a camera
+  0.17 m up, 45 m from a wall whose ground is 0.15 m, reads one pixel as 270 m, and the credit's band then spans every
+  answer from 22.5 m to 89.7 m. A camera that low, or level with the foot's ground (`rules.resolution_m` has no bound),
+  cannot place the foot to within C/2, so the question is not asked. The `unknown` rows have no foot and are not
+  screened.
 
 ## Not asked
 
@@ -326,10 +333,12 @@ three jobs. The map reader scores 0.329 on the helper, 0.704 on the vacuum and 0
 `memory_table` score 1.000 on all three. A `now` row's `age_s` is 0 (final review S6; 9 `clear_path` rows of 0.9.0's data
 named an earlier frame and were aged from it), and its catastrophe is charged only where the true corridor is under the
 body's length plus C and the answer is not (S5): a drone corridor's median gold is 24 m against a 2.4 m margin, and a
-30 m answer to it hits nothing. The 0.11.0 release holds the same counts (96, 315 and 196 questions in 36 cases a job,
-66, 180 and 144 of them in the short and medium cases); its check passes every gate and the evidence verdict, the map
-reader reads 0.337, 0.706 and 0.816 there against `all_unknown`'s 0.125, 0.016 and 0.092, and the oracle and
-`memory_table` read 1.000.
+30 m answer to it hits nothing. The 0.11.0 release held the same counts (96, 315 and 196 questions in 36 cases a job,
+66, 180 and 144 of them in the short and medium cases); the 0.11.1 release holds 96, 315 and 194, with 66, 180 and 142
+in the short and medium cases, because the drone's two corridors whose wall's foot the evidence frame cannot place are
+no longer asked (above, "Tied to its foot"; the drone's `memory` cell holds 98 questions). Its check passes every gate
+and the evidence verdict, the map reader reads 0.337, 0.706 and 0.814 there against `all_unknown`'s 0.125, 0.016 and
+0.093 (0.11.0: 0.816 and 0.092 on the drone), and the oracle and `memory_table` read 1.000.
 
 The precision-and-forgetting proxies (each model's own `clear_path` errors on `now` rows, its `ego_mem` errors and
 abstentions on `memory` rows and its `unknown` recall on unknown rows) bound what precision costs on the turned corridors:

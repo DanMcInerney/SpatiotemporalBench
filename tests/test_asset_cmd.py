@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+from pathlib import PurePosixPath
 
 import pytest
 
@@ -137,6 +138,20 @@ def test_credits_judges_the_resolved_path_not_how_it_is_spelled(world, tmp_path)
     world.manifest()
     assert world.run("credits", "--out", str(tmp_path / "out" / "scripts" / ".." / "CREDITS.md")) == 0
     assert (tmp_path / "out" / "CREDITS.md").is_file()
+
+
+@pytest.mark.parametrize(("path", "platform", "refused"), [
+    pytest.param("/private/var/folders/t/dataset/CREDITS.md", "darwin", False, id="macOS temp folder"),
+    pytest.param("/private/tmp/dataset/CREDITS.md", "darwin", False, id="macOS /tmp"),
+    pytest.param("/private/var/folders/t/dataset/private/CREDITS.md", "darwin", True, id="a dataset's private, macOS"),
+    pytest.param("/private/tmp/dataset/scripts/CREDITS.md", "darwin", True, id="a dataset's scripts on macOS"),
+    pytest.param("/private/dataset/CREDITS.md", "linux", True, id="a root private folder elsewhere"),
+])
+def test_credits_leaves_macos_system_private_folder_alone(path, platform, refused):
+    """Contract: macOS resolves /tmp and /var to /private/tmp and /private/var, the system's folder and not a dataset's,
+    so only the folders after it are judged; every other platform judges a root /private like any other. Regression
+    caught: `stbench assets credits --out` refusing every path under the macOS temp folders."""
+    assert asset_cmd._through_dataset_folder(PurePosixPath(path), platform) is refused
 
 
 def test_credits_reports_a_path_it_cannot_write_instead_of_crashing(world, tmp_path, capsys):

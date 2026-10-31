@@ -66,7 +66,7 @@ from .answers import Offset, parse_answer
 from .case import PRIVATE
 from .ego_frame import BANDS, band
 from .score import EPS
-from .score_graded import radial_error
+from .score_graded import bearing_deg, radial_error
 from .score_stats import paired_difference
 from .suite import read_jsonl
 
@@ -86,13 +86,9 @@ def measure(answer: Offset, gold: Offset, range_m: float) -> dict:
     if not range_m > 0:
         raise ValueError(f"range_m must be above 0, got {range_m!r}")
     asked, truth = math.hypot(answer.ahead_m, answer.left_m), math.hypot(gold.ahead_m, gold.left_m)
-    bearing = None
-    if asked > 0 and truth > 0:
-        cosine = (answer.ahead_m * gold.ahead_m + answer.left_m * gold.left_m) / (asked * truth)
-        bearing = math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
     return {"range_error": (asked - truth) / range_m,
             "relative_error": math.hypot(answer.ahead_m - gold.ahead_m, answer.left_m - gold.left_m) / range_m,
-            "bearing_deg": bearing}
+            "bearing_deg": bearing_deg(answer, gold)}
 
 
 def absolute_error(answer: Offset, gold: Offset) -> float:

@@ -83,6 +83,13 @@ def no_codex_home(tmp_path_factory):
         yield
 
 
+@pytest.fixture(autouse=True)
+def run_from_tmp_path(tmp_path, monkeypatch):
+    """Each test runs with its `tmp_path` as the current directory: `stbench run` and `stbench eval` write their default
+    folder `runs/<name>` there, so no test leaves a run in the checkout."""
+    monkeypatch.chdir(tmp_path)
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(items):
     """Every `docker` test joins one xdist group (`--dist loadgroup`, pyproject.toml), so under `-n` they all run in one

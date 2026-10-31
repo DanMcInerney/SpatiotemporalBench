@@ -59,8 +59,8 @@ def test_aggregate_reports_the_headline_the_splits_counts_wrong_rate_and_abstent
     rep = aggregate(FIXTURE, n_boot=50)
     assert (rep["n"], rep["scripts"], rep["cases"]) == (12, 3, 3)
     assert rep["headline"]["mean"] == pytest.approx(41 / 120)
-    assert {k: (c["mean"], c["n"]) for k, c in rep["columns"].items()} == pytest.approx(
-        {"now": (0.6, 5), "memory": (1 / 12, 7)})
+    assert {k: c["mean"] for k, c in rep["columns"].items()} == pytest.approx({"now": 0.6, "memory": 1 / 12})
+    assert {k: c["n"] for k, c in rep["columns"].items()} == {"now": 5, "memory": 7}
     by = rep["by"]
     assert set(by) == set(DIMS)
     assert {k: v["mean"] for k, v in by["family"].items()} == pytest.approx({"ow": 1 / 6, "pa": 0.6, "own": 0.0})

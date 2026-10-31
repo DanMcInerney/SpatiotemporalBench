@@ -28,13 +28,15 @@ def test_an_ability_with_rows_in_both_scopes_counts_in_each_column_as_its_own_ce
     `now` column, a cell weighed by its count, or the two cells of an ability pooled."""
     agg = aggregate(rows(), n_boot=50)
     assert agg["headline"]["mean"] == pytest.approx(31 / 48)
-    assert {k: (c["mean"], c["n"]) for k, c in agg["columns"].items()} == pytest.approx(
-        {"now": (5 / 8, 6), "memory": (2 / 3, 9)})
+    assert {k: c["mean"] for k, c in agg["columns"].items()} == pytest.approx({"now": 5 / 8, "memory": 2 / 3})
+    assert {k: c["n"] for k, c in agg["columns"].items()} == {"now": 6, "memory": 9}
     assert agg["abilities_mean"]["mean"] == pytest.approx(31 / 48) and agg["pooled"]["mean"] == pytest.approx(2 / 3)
     clearance = agg["by"]["ability"]["clearance"]
     assert clearance["scope"] == "memory/now" and clearance["n"] == 5
-    assert {s: (c["n"], c["counted"], c["mean"], c["weight"]) for s, c in clearance["cells"].items()} == pytest.approx(
-        {"now": (2, 2, 1.0, 1 / 4), "memory": (3, 3, 1 / 3, 1 / 4)})
+    cells = clearance["cells"]
+    assert {s: (c["n"], c["counted"]) for s, c in cells.items()} == {"now": (2, 2), "memory": (3, 3)}
+    assert {s: c["mean"] for s, c in cells.items()} == pytest.approx({"now": 1.0, "memory": 1 / 3})
+    assert {s: c["weight"] for s, c in cells.items()} == pytest.approx({"now": 1 / 4, "memory": 1 / 4})
     assert agg["by"]["ability"]["distance"]["cells"]["now"]["weight"] == pytest.approx(1 / 4)
 
 

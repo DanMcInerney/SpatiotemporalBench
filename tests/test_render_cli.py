@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import replace
 
 import numpy as np
@@ -11,7 +12,7 @@ from PIL import Image
 
 from builders import CHAIR, MUG, minimal_timeline
 from render_kit import META, fake_blender, small_vacuum, vacuum_script
-from stbench import cli
+from stbench import blender_run, cli
 from stbench import episode as ep
 from stbench import render_cli as R
 from stbench.leak import leak_scan
@@ -53,6 +54,20 @@ def test_a_missing_blender_is_a_clear_error_and_leaves_no_temporary_files(tmp_pa
     with pytest.raises(R.RenderError, match="STBENCH_BLENDER"):
         R.render(paths)
     assert not (paths.private / R.TMP_NAME).exists()
+
+
+def test_blender_is_the_variable_then_the_one_on_the_path(tmp_path, monkeypatch):
+    """Contract: `STBENCH_BLENDER` names Blender when it is set; otherwise the `blender` on the PATH is used, so a Linux
+    install (which has no fixed folder) and a Windows or macOS one that is on the PATH need no setting. Regression
+    caught: a default that is one system's install folder, which fails every other system until the variable is set."""
+    exe = tmp_path / ("blender.cmd" if os.name == "nt" else "blender")
+    exe.write_text("", encoding="utf-8")
+    exe.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.delenv("STBENCH_BLENDER", raising=False)
+    assert os.path.samefile(blender_run.blender_path(), exe)
+    monkeypatch.setenv("STBENCH_BLENDER", "elsewhere")
+    assert blender_run.blender_path() == "elsewhere"
 
 
 def test_the_render_command_reports_failure_with_a_nonzero_exit(tmp_path, monkeypatch, capsys):

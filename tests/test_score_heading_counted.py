@@ -34,8 +34,8 @@ def test_open_heading_rows_are_clearance_rows_in_the_cell_of_their_scope():
     both = aggregate(rows(with_heading=True), n_boot=20)
     assert alone["headline"]["mean"] == pytest.approx(0.75)
     assert both["headline"]["mean"] == pytest.approx(-0.3125)
-    assert {k: (c["mean"], c["n"]) for k, c in both["columns"].items()} == pytest.approx(
-        {"now": (-0.125, 4), "memory": (-0.5, 1)})
+    assert {k: c["mean"] for k, c in both["columns"].items()} == pytest.approx({"now": -0.125, "memory": -0.5})
+    assert {k: c["n"] for k, c in both["columns"].items()} == {"now": 4, "memory": 1}
     assert "heading" not in both["by"]["ability"] and both["by"]["ability"]["clearance"]["n"] == 5
 
 

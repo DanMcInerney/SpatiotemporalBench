@@ -11,9 +11,9 @@ SYSTEM is a baseline, `FILE.py:Class` (an external system: the Docker sandbox, o
 unsandboxed and not a verified score) or `<agent>:<model>` through `cmd_run.AGENTS` (`--reasoning` goes to an agent),
 as for `stbench run`. The cases are the dataset's compiled cases that ask a question, narrowed by `--cases` and by
 `--select` on `layout`, `robot`, `job` and `length`. Each is run through `stream.run_case` (`--workers` at a time),
-scored, and written under RUNDIR (by default `D/runs/<system>-<channel>`, with `-<brief>` and `-during-off` added when
-they are not the defaults) as `cases/<cid>/` (`answers.jsonl`, `rows.jsonl`, `summary.json`, an agent's own files), and
-RUNDIR gets `results.json` (`eval_results`) and `results.md` (`eval_report`), one aggregate per
+scored, and written under RUNDIR (by default `runs/<system>-<channel>` in the current directory, with `-<brief>` and
+`-during-off` added when they are not the defaults) as `cases/<cid>/` (`answers.jsonl`, `rows.jsonl`, `summary.json`, an
+agent's own files), and RUNDIR gets `results.json` (`eval_results`) and `results.md` (`eval_report`), one aggregate per
 layout, never pooled. Running the same command again skips the finished cases and runs the rest from their start (an
 agent's call cannot be replayed); `results.json` is first written, with no case finished, before the first case runs,
 so a run killed at any point still says what it was, and a rerun with another system, channel, brief, during flag,
@@ -88,13 +88,13 @@ def _usd(text: str) -> float:
 
 
 def _out(args: argparse.Namespace, lever: str | None, brief: str, during: bool) -> Path:
-    """RUNDIR: `--out`, or `D/runs/<system>-<channel>` with `-<brief>` and `-during-off` when an option that is not
-    the arms' lever is not its default. Refused under the dataset's `scripts/` or `private/`."""
+    """RUNDIR: `--out`, or `runs/<system>-<channel>` (`cmd_run.default_out`) with `-<brief>` and `-during-off` when an
+    option that is not the arms' lever is not its default. Refused under the dataset's `scripts/` or `private/`."""
     suffix = ("" if lever == "brief" or brief == "correct" else f"-{brief}") + (
         "" if lever == "during" or during else "-during-off")
     name = (f"{cmd_run.safe_name(args.system)}-{args.channel}{suffix}" + ("-text-only" if args.text_only else "")
             + cmd_run.memory_suffix(args))
-    return cmd_run.refuse_truth_folder(args.out or args.data / "runs" / name, args.data)
+    return cmd_run.refuse_truth_folder(args.out or cmd_run.default_out(name), args.data)
 
 
 def _config(args: argparse.Namespace) -> Config:
@@ -236,9 +236,9 @@ def register(sub) -> None:
                                                                  "references' (the scripted kind_range and "
                                                                  "all_unknown: the better one is used)")
     p.add_argument("--data", type=Path, help="the dataset folder (distance: where the golds are)")
-    p.add_argument("--out", type=Path, help="run: the run folder (default DATA/runs/<system>-<channel>, with -<brief> "
-                                            "and -during-off added when they are not the defaults); "
-                                            "compare, distance: also write the report to this file")
+    p.add_argument("--out", type=Path, help="run: the run folder (default runs/<system>-<channel> in the current "
+                                            "directory, with -<brief> and -during-off added when they are not the "
+                                            "defaults); compare, distance: also write the report to this file")
     p.add_argument("--cases", metavar="ID,...", help="only these case ids (compiled cases that ask a question)")
     p.add_argument("--select", action="append", default=[], metavar="KEY=VALUE",
                    help="only cases whose layout, robot, job or length is VALUE (repeat a key for either value; "

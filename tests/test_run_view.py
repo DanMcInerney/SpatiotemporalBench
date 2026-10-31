@@ -39,7 +39,8 @@ def test_every_case_and_question_is_there_with_the_answer_and_the_gold(tmp_path)
     assert arm["header"]["system"] == "all_unknown" and arm["header"]["channel"] == "rgb_pose"
     assert arm["layouts"]["apartment_a"]["headline"]["mean"] == pytest.approx(0.375)
     columns = arm["layouts"]["apartment_a"]["columns"]
-    assert {k: (c["mean"], c["n"]) for k, c in columns.items()} == pytest.approx({"now": (0.0, 2), "memory": (0.75, 4)})
+    assert {k: c["mean"] for k, c in columns.items()} == pytest.approx({"now": 0.0, "memory": 0.75})
+    assert {k: c["n"] for k, c in columns.items()} == {"now": 2, "memory": 4}
     assert (arm["totals"]["finished"], arm["totals"]["cases"]) == (2, 2)
     expected = {first.id: (["abstained", "abstained", "correct"], 1 / 3),
                 second.id: (["abstained", "correct", "correct"], 2 / 3)}

@@ -38,8 +38,9 @@ KINDS = ("complete", "ended", "invalid", "refused", "unfinished")   # the colour
 
 
 def find_dataset(run_dir: Path) -> Path | None:
-    """The dataset RUN_DIR sits in (`DATASET/runs/<name>[/<arm>]`): the nearest folder above it that holds `private/`
-    and `scripts/`, None for a run folder anywhere else."""
+    """The dataset RUN_DIR sits in (a run started inside it: `DATASET/runs/<name>[/<arm>]`): the nearest folder above it
+    that holds `private/` and `scripts/`, None for a run folder anywhere else (the default `runs/` of the current
+    directory, outside the dataset)."""
     here = run_dir.resolve()
     return next((p for p in [here, *here.parents][:6]
                  if (p / case_mod.PRIVATE).is_dir() and (p / case_mod.SCRIPTS).is_dir()), None)

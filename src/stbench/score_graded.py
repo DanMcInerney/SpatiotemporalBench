@@ -16,7 +16,8 @@ heading's best run; a place and a list item have none). This module reads the go
 - a `position` (a place in the map): `e` the floor distance; the direction is right when `e <= N` (going there, the
   robot finds the thing in view; the room a thing is in is a fact of the map and the kind, which a sensorless prior
   knows, so it earns no quarter); never harmful;
-- a `positions` list (`score_set.graded_set`): the items are matched to the gold's by maximum summed credit;
+- a `positions` list (`score_set.graded_set`): the items outside every don't-care circle are matched to the gold's by
+  maximum summed credit, then those inside a circle take only the gold items left over;
 - a `heading` (`regret`): the answered heading is read off the gold's `profile_m`, the run of the corridor at each
   heading; `e` is the room it gives up against the best heading. The profile has `360 / step_deg` entries, entry `i`
   the heading `i * step_deg` degrees to the left of the way the robot faces (null where the corridor was never seen,
@@ -68,20 +69,29 @@ def _harm(record: dict) -> str | None:
 
 def radial_error(answer: Offset, gold: Offset) -> float:
     """The component of the answer's error along the gold's bearing, in metres: positive when the answer places the
-    point farther from the camera than the gold does (0 for a gold on the camera, which has no bearing)."""
+    point farther from the camera than the gold does (0 for a gold on the camera, which has no bearing). The bearing is
+    a unit vector, so no product of two metres can overflow."""
     norm = math.hypot(gold.ahead_m, gold.left_m)
     if norm < EPS:
         return 0.0
-    return ((answer.ahead_m - gold.ahead_m) * gold.ahead_m + (answer.left_m - gold.left_m) * gold.left_m) / norm
+    return ((answer.ahead_m - gold.ahead_m) * (gold.ahead_m / norm)
+            + (answer.left_m - gold.left_m) * (gold.left_m / norm))
+
+
+def _scaled(offset: Offset) -> tuple[float, float]:
+    larger = max(abs(offset.ahead_m), abs(offset.left_m))
+    return offset.ahead_m / larger, offset.left_m / larger
 
 
 def bearing_deg(answer: Offset, gold: Offset) -> float | None:
-    """The angle between the two offsets in degrees, None when either is the zero vector (it has no bearing)."""
-    a, g = math.hypot(answer.ahead_m, answer.left_m), math.hypot(gold.ahead_m, gold.left_m)
-    if a < EPS or g < EPS:
+    """The angle between the two offsets in degrees, None when either is the zero vector (it has no bearing). Each
+    vector is scaled by its larger component first, which leaves the angle alone and keeps the products finite for any
+    finite answer."""
+    if math.hypot(answer.ahead_m, answer.left_m) < EPS or math.hypot(gold.ahead_m, gold.left_m) < EPS:
         return None
-    cosine = (answer.ahead_m * gold.ahead_m + answer.left_m * gold.left_m) / (a * g)
-    return math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
+    ax, ay = _scaled(answer)
+    gx, gy = _scaled(gold)
+    return math.degrees(math.atan2(abs(ax * gy - ay * gx), ax * gx + ay * gy))
 
 
 def _offset(answer: Offset, gold: Offset, record: dict) -> float:

@@ -100,8 +100,8 @@ def _position_error(answer: Position, gold: Position, metric: str) -> float | No
     if metric == "xyz":
         if not (answer.has_z and gold.has_z):
             return None
-        return sum((a - g) ** 2 for a, g in zip(answer.coords, gold.coords, strict=True)) ** 0.5
-    return ((answer.xy[0] - gold.xy[0]) ** 2 + (answer.xy[1] - gold.xy[1]) ** 2) ** 0.5
+        return math.dist(answer.coords, gold.coords)
+    return math.dist(answer.xy, gold.xy)
 
 
 def _ladder_credit(answer: Answer, gold: Answer, record: dict) -> float:

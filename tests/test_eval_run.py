@@ -59,8 +59,9 @@ def test_two_cases_aggregate_by_hand(data, tmp_path):
     assert {k: s["mean"] for dim in ("scope", "when") for k, s in agg["by"][dim].items()} == pytest.approx(
         {"now": 0.0, "memory": 0.75, "during": 0.0, "end": 0.75})
     assert {k: s["mean"] for k, s in agg["by"]["slice"].items()} == pytest.approx({"answerable": 0.0, "unknown": 1.0})
-    assert {k: (s["n"], s["mean"]) for k, s in agg["by"]["relevance"].items()} == pytest.approx(
-        {"situational": (3, 0.0), "unknown": (3, 1.0)})   # no gold of the hand dataset is tagged critical
+    relevance = agg["by"]["relevance"]   # no gold of the hand dataset is tagged critical
+    assert {k: s["n"] for k, s in relevance.items()} == {"situational": 3, "unknown": 3}
+    assert {k: s["mean"] for k, s in relevance.items()} == pytest.approx({"situational": 0.0, "unknown": 1.0})
     assert agg["above_floor"]["mean"] == pytest.approx(0.0)   # 3/8 less the unknown share 3/8: no skill above the floor
     assert agg["counts"] == {"correct": 3, "partial": 0, "wrong": 0, "abstained": 3}
     assert agg["abstention"]["answered_unknown"] == 6 and agg["abstention"]["unknown_gold"] == 3

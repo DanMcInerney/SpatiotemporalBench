@@ -11,8 +11,8 @@ abstract: >-
   robot's sensors recorded and asked the questions a controller would ask itself, during the job and after it. Gold
   answers are computed by code from the simulator's full record of the world, and validity gates over scripted
   baselines keep out question families that shortcuts can answer.
-version: 0.11.0
-date-released: 2026-10-16
+version: 0.11.1
+date-released: 2026-10-30
 license: MIT
 repository-code: "https://github.com/DanMcInerney/SpatiotemporalBench"
 keywords:

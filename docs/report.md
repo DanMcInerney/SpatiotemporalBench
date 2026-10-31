@@ -1,39 +1,45 @@
-# SpatiotemporalBench 0.11.0: technical report
+# SpatiotemporalBench 0.11.1: technical report
 
-Version 0.11.0 (2026-10-16) · code:
+Version 0.11.1 (2026-10-30) · code:
 [DanMcInerney/SpatiotemporalBench](https://github.com/DanMcInerney/SpatiotemporalBench) · data:
-`DanMcInerney/spatiotemporalbench` on Hugging Face, revision `v0.11.0`
+`DanMcInerney/spatiotemporalbench` on Hugging Face, revision `v0.11.1`
 
 > The reference rows are Claude models; 0.10.0's rows were Codex models and are in
-> [history/report-0.10.0.md](history/report-0.10.0.md). What 0.11.0 changes is in the [CHANGELOG](../CHANGELOG.md),
-> [methodology.md](methodology.md) (rules 4, 5 and 7) and [question-design.md](question-design.md) (sections 1, 2, 3, 5,
-> 6 and 8).
+> [history/report-0.10.0.md](history/report-0.10.0.md). What 0.11.0 and 0.11.1 change is in the
+> [CHANGELOG](../CHANGELOG.md), [methodology.md](methodology.md) (rules 4, 5 and 7) and
+> [question-design.md](question-design.md) (sections 1, 2, 3, 5, 6 and 8).
 
-This report goes deeper than the [README](../README.md). It covers what 0.11.0 measures and, as plainly, what it does
+This report goes deeper than the [README](../README.md). It covers what 0.11.1 measures and, as plainly, what it does
 not; how it scores; which questions it asks and why; what three reference models and a scripted floor scored; whether
-the design did what it set out to do; how validity is checked; and where the benchmark stops. 0.11.0 keeps the renders
-of 0.7.0 to 0.9.0 and compiles them again, as 0.10.0 did: the agent pulls one frame at a time, and the questions are the
-decisions each robot's brain faces. The reference models are Claude models in 0.11.0. The report of 0.10.0, whose
-reference rows were Codex models and whose questions and credit this release changes, is kept in
-[history/report-0.10.0.md](history/report-0.10.0.md), that of 0.9.0 in [history/report-0.9.0.md](history/report-0.9.0.md)
-and that of 0.7.0 in [history/report-0.7.0.md](history/report-0.7.0.md). Every number comes from the release's compiled
-data and result files, or from a review or a measurement of the data named where the number stands. The tables of
-results and gates are pasted from the outputs of `stbench eval` and `stbench check` by `tools/fill_report.py`; the few
-figures no tool prints (the age bands and the catastrophes pooled over places, the full-credit shares and the family
-slices by job) were counted from each run's rows.
+the design did what it set out to do; how validity is checked; and where the benchmark stops. 0.11.1 keeps the renders
+of 0.7.0 to 0.9.0 and compiles them again, as 0.10.0 and 0.11.0 did: the agent pulls one frame at a time, and the
+questions are the decisions each robot's brain faces. The reference models are Claude models, as in 0.11.0. The report
+of 0.10.0, whose reference rows were Codex models and whose questions and credit this release changes, is kept in
+[history/report-0.10.0.md](history/report-0.10.0.md), that of 0.9.0 in
+[history/report-0.9.0.md](history/report-0.9.0.md) and that of 0.7.0 in
+[history/report-0.7.0.md](history/report-0.7.0.md). Every number comes from the release's compiled data and result
+files, or from a review or a measurement of the data named where the number stands. The tables of results and gates are
+pasted from the outputs of `stbench eval` and `stbench check` by `tools/fill_report.py`; the few figures no tool prints
+(the age bands and the catastrophes pooled over places, the full-credit shares and the family slices by job) were
+counted from each run's rows.
 
 **In short.** A simulated robot does a real job in a photoreal place. Its camera frames reach the agent one at a time,
 each with the robot's pose, its own velocity, the clock and its status, and no depth; the agent asks for the next frame
 when it is done with the last. It is asked the decisions the robot's job depends on, harm first: how far its body could
 move before it touched anything, how close the person nearest it would come in the next 5 seconds, what lies on the
-floor that its brush could catch. Then come the questions about what it saw before: where things are from it, in view and
-out of view, and where on the map it last saw them. Code checks each answer against the simulator's record and credits it
-in four quarters by what its error would do to the job, and an answer whose action would have ended in harm is charged a
-flat penalty in the reported score. 0.11.0 measures perception and memory. It does not test change over time: no job asks
-what moved, appeared or went since an earlier pass, or where a moving person is going (Section 7). On 42 of the 124 short
-and medium cases that ask a question (Section 4 says why 42), `claude:haiku` (medium) scores +0.152 [+0.076, +0.250] on `apartment_a`, +0.185 [+0.019, +0.325] on `downtown_a`, +0.273 [+0.112, +0.440] on `warehouse_a`; `claude:sonnet` (medium) scores +0.286 [+0.159, +0.404] on `apartment_a`, +0.366 [+0.213, +0.505] on `downtown_a`, +0.307 [+0.077, +0.499] on `warehouse_a`; `claude:opus` (medium) scores +0.567 [+0.518, +0.642] on `apartment_a`, +0.614 [+0.517, +0.717] on `downtown_a`, +0.419 [+0.188, +0.638] on `warehouse_a`; the floor
-scores `apartment_a`: `all_unknown` (rgb_pose) +0.034 [+0.019, +0.048]; `downtown_a`: `all_unknown` (rgb_pose) +0.132 [+0.078, +0.219]; `warehouse_a`: `all_unknown` (rgb_pose) +0.056 [+0.000, +0.125]. These are dev rows: the questions were
-refined on the shifts they are scored on, and nothing is held out.
+floor that its brush could catch. Then come the questions about what it saw before: where things are from it, in view
+and out of view, and where on the map it last saw them. Code checks each answer against the simulator's record and
+credits it in four quarters by what its error would do to the job, and an answer whose action would have ended in harm
+is charged a flat penalty in the reported score. 0.11.1 measures perception and memory. It does not test change over
+time: no job asks what moved, appeared or went since an earlier pass, or where a moving person is going (Section 7). On
+42 of the 124 short and medium cases that ask a question (Section 4 says why 42), `claude:haiku` (medium) scores +0.152
+[+0.076, +0.250] on `apartment_a`, +0.191 [+0.023, +0.325] on `downtown_a`, +0.273 [+0.112, +0.440] on `warehouse_a`;
+`claude:sonnet` (medium) scores +0.286 [+0.159, +0.404] on `apartment_a`, +0.369 [+0.216, +0.514] on `downtown_a`,
++0.307 [+0.077, +0.499] on `warehouse_a`; `claude:opus` (medium) scores +0.567 [+0.518, +0.642] on `apartment_a`, +0.609
+[+0.509, +0.713] on `downtown_a`, +0.419 [+0.188, +0.638] on `warehouse_a`; the floor scores `apartment_a`:
+`all_unknown` (rgb_pose) +0.034 [+0.019, +0.048]; `downtown_a`: `all_unknown` (rgb_pose) +0.137 [+0.082, +0.225];
+`warehouse_a`: `all_unknown` (rgb_pose) +0.056 [+0.000, +0.125]. These are dev rows: the questions were refined on the
+shifts they are scored on, and nothing is held out.
 
 ## 1. What is measured, and the setup
 
@@ -103,10 +109,10 @@ run the short and medium cases. **Counts** in the compiled data, from the releas
 | `vacuum/2` | `apartment_a` | 16 | 16 / 16 / 4 | 711 | 6,460 |
 | `helper/1` | `apartment_a` | 16 | 16 / 16 / 4 | 541 | 3,157 |
 | `amr/1` | `warehouse_a` | 16 | 16 / 16 / 4 | 245 | 4,679 |
-| `drone/1` | `downtown_a` | 16 | 16 / 16 / 4 | 264 | 2,534 |
+| `drone/1` | `downtown_a` | 16 | 16 / 16 / 4 | 262 | 2,534 |
 
 In all, 64 shifts were rendered once and compiled into 144 cases of
-16,830 frames, with 1,761 questions.
+16,830 frames, with 1,759 questions.
 
 | Kind | Family | Ability (column) | When | It asks | Answer |
 | --- | --- | --- | --- | --- | --- |
@@ -408,16 +414,18 @@ A person is evidence at 1,024 pixels with the feet tied to the floor, and a fram
 dead band for `closest_approach`.
 
 **The questions over the releases,** on the same cases: 0.6.0 asked 1,009, 0.7.0 785 and 0.9.0 668. 0.10.0's compile
-holds 1,701, asked at far more points of each case, and 0.11.0's 1,761.
+holds 1,701, asked at far more points of each case, 0.11.0's 1,761 and 0.11.1's 1,759 (two corridors of the drone
+fewer).
 
 ## 4. Results per place
 
-These rows are 0.11.0's: Claude models, run on 0.11.0's questions and prompt and scored by 0.11.0's scorer. **The
-reference models changed from Codex to Claude** in this release: the harness runs both agents the same way
-([claude.md](claude.md)), so 0.11.0's rows are three Claude models. 0.10.0's rows were three Codex models (astra, sol and
-luna) on 0.10.0's questions. They are in [the report of 0.10.0](history/report-0.10.0.md), and the same stored answers
-scored by 0.11.0's scorer are in the [CHANGELOG](../CHANGELOG.md). The two sets of rows differ in the models, the
-questions, the prompt and the scorer, and this report does not compare them.
+These rows are 0.11.0's runs: Claude models, run on 0.11.0's questions and prompt, with the answers to the two questions
+0.11.1 no longer asks dropped and the rest scored again by this release's scorer (no model ran again; only `downtown_a`
+moves). **The reference models changed from Codex to Claude** in 0.11.0: the harness runs both agents the same way
+([claude.md](claude.md)), so 0.11.0's rows are three Claude models. 0.10.0's rows were three Codex models (astra, sol
+and luna) on 0.10.0's questions. They are in [the report of 0.10.0](history/report-0.10.0.md), and the same stored
+answers scored by 0.11.0's scorer are in the [CHANGELOG](../CHANGELOG.md). The two sets of rows differ in the models,
+the questions, the prompt and the scorer, and this report does not compare them.
 
 The reference agent is the same agent as 0.10.0's, reached through the Claude Code CLI on a Claude Code login
 ([claude.md](claude.md); [codex.md](codex.md) describes what the two share). A case is one `claude -p` process. Its two
@@ -445,10 +453,10 @@ Coverage: `all_unknown`: 42 of 42 cases; `claude:haiku` (medium): 42 of 42 cases
 | `warehouse_a` | `claude:sonnet` (medium) | +0.307 [+0.077, +0.499] | +0.360 [+0.028, +0.652] over 24 | +0.254 [-0.008, +0.486] over 40 | 11 |
 | `warehouse_a` | `claude:opus` (medium) | +0.419 [+0.188, +0.638] | +0.501 [+0.276, +0.699] over 24 | +0.338 [-0.002, +0.686] over 40 | 11 |
 | `warehouse_a` | `all_unknown` | +0.056 [+0.000, +0.125] | +0.000 [+0.000, +0.000] over 24 | +0.111 [+0.000, +0.250] over 40 | 11 |
-| `downtown_a` | `claude:haiku` (medium) | +0.185 [+0.019, +0.325] | +0.109 [-0.079, +0.318] over 22 | +0.261 [+0.008, +0.467] over 46 | 11 |
-| `downtown_a` | `claude:sonnet` (medium) | +0.366 [+0.213, +0.505] | +0.380 [+0.201, +0.586] over 22 | +0.351 [+0.111, +0.534] over 46 | 11 |
-| `downtown_a` | `claude:opus` (medium) | +0.614 [+0.517, +0.717] | +0.596 [+0.463, +0.788] over 22 | +0.632 [+0.506, +0.781] over 46 | 11 |
-| `downtown_a` | `all_unknown` | +0.132 [+0.078, +0.219] | +0.000 [+0.000, +0.000] over 22 | +0.263 [+0.156, +0.438] over 46 | 11 |
+| `downtown_a` | `claude:haiku` (medium) | +0.191 [+0.023, +0.325] | +0.109 [-0.079, +0.318] over 22 | +0.272 [+0.012, +0.473] over 44 | 11 |
+| `downtown_a` | `claude:sonnet` (medium) | +0.369 [+0.216, +0.514] | +0.380 [+0.201, +0.586] over 22 | +0.358 [+0.109, +0.560] over 44 | 11 |
+| `downtown_a` | `claude:opus` (medium) | +0.609 [+0.509, +0.713] | +0.596 [+0.463, +0.788] over 22 | +0.622 [+0.480, +0.774] over 44 | 11 |
+| `downtown_a` | `all_unknown` | +0.137 [+0.082, +0.225] | +0.000 [+0.000, +0.000] over 22 | +0.274 [+0.165, +0.450] over 44 | 11 |
 
 How to read the rows:
 - **The floor's `memory`** is the mean, over the memory cells, of the share of each cell's questions that have `unknown`
@@ -517,24 +525,24 @@ The headline is the mean of the `now` and `memory` columns, each weighing the la
 
 | family | A | B | B - A | C | C - A | D | D - A |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| **headline** | +0.132 [+0.078, +0.219] | +0.185 [+0.019, +0.325] | +0.053 [-0.160, +0.229] over 68 | +0.366 [+0.213, +0.505] | +0.234 [+0.021, +0.424] over 68 | +0.614 [+0.517, +0.717] | +0.482 [+0.379, +0.610] over 68 |
+| **headline** | +0.137 [+0.082, +0.225] | +0.191 [+0.023, +0.325] | +0.054 [-0.160, +0.230] over 66 | +0.369 [+0.216, +0.514] | +0.232 [+0.014, +0.430] over 66 | +0.609 [+0.509, +0.713] | +0.472 [+0.365, +0.600] over 66 |
 | `now` | +0.000 [+0.000, +0.000] | +0.109 [-0.079, +0.318] | +0.109 [-0.079, +0.318] over 22 | +0.380 [+0.201, +0.586] | +0.380 [+0.201, +0.586] over 22 | +0.596 [+0.463, +0.788] | +0.596 [+0.463, +0.788] over 22 |
-| `memory` | +0.263 [+0.156, +0.438] | +0.261 [+0.008, +0.467] | -0.003 [-0.360, +0.223] over 46 | +0.351 [+0.111, +0.534] | +0.088 [-0.272, +0.340] over 46 | +0.632 [+0.506, +0.781] | +0.368 [+0.254, +0.518] over 46 |
+| `memory` | +0.274 [+0.165, +0.450] | +0.272 [+0.012, +0.473] | -0.002 [-0.360, +0.225] over 44 | +0.358 [+0.109, +0.560] | +0.084 [-0.276, +0.350] over 44 | +0.622 [+0.480, +0.774] | +0.348 [+0.214, +0.508] over 44 |
 | clearance, now (n 22) | +0.000 [+0.000, +0.000] | +0.109 [-0.079, +0.318] | +0.109 [-0.079, +0.318] over 22 | +0.380 [+0.201, +0.586] | +0.380 [+0.201, +0.586] over 22 | +0.596 [+0.463, +0.788] | +0.596 [+0.463, +0.788] over 22 |
-| clearance, memory (n 32) | +0.312 [+0.154, +0.500] | +0.339 [+0.187, +0.500] | +0.027 [+0.000, +0.076] over 32 | +0.200 [-0.132, +0.475] | -0.112 [-0.618, +0.276] over 32 | +0.701 [+0.570, +0.838] | +0.388 [+0.304, +0.461] over 32 |
+| clearance, memory (n 30) | +0.333 [+0.167, +0.524] | +0.362 [+0.201, +0.533] | +0.029 [+0.000, +0.080] over 30 | +0.214 [-0.146, +0.504] | -0.120 [-0.657, +0.287] over 30 | +0.681 [+0.543, +0.822] | +0.348 [+0.271, +0.409] over 30 |
 | memory (n 14) | +0.214 [+0.067, +0.501] | +0.182 [-0.294, +0.513] | -0.032 [-0.618, +0.360] over 14 | +0.502 [+0.070, +0.711] | +0.288 [-0.324, +0.503] over 14 | +0.562 [+0.338, +0.868] | +0.348 [+0.104, +0.633] over 14 |
-| clear_path | +0.185 [+0.091, +0.270] | +0.246 [+0.131, +0.372] | +0.060 [-0.026, +0.159] over 54 | +0.273 [+0.116, +0.465] | +0.088 [-0.141, +0.356] over 54 | +0.658 [+0.540, +0.766] | +0.473 [+0.411, +0.537] over 54 |
+| clear_path | +0.192 [+0.096, +0.281] | +0.255 [+0.140, +0.383] | +0.063 [-0.027, +0.162] over 52 | +0.284 [+0.122, +0.477] | +0.092 [-0.149, +0.364] over 52 | +0.645 [+0.524, +0.750] | +0.453 [+0.400, +0.500] over 52 |
 | ego_mem | +0.214 [+0.067, +0.501] | +0.182 [-0.294, +0.513] | -0.032 [-0.618, +0.360] over 14 | +0.502 [+0.070, +0.711] | +0.288 [-0.324, +0.503] over 14 | +0.562 [+0.338, +0.868] | +0.348 [+0.104, +0.633] over 14 |
 
 | relevance | A | B | B - A | C | C - A | D | D - A |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| answerable, critical | +0.000 [+0.000, +0.000] | +0.124 [-0.003, +0.253] | +0.124 [-0.003, +0.253] over 55 | +0.342 [+0.184, +0.488] | +0.342 [+0.184, +0.488] over 55 | +0.589 [+0.505, +0.672] | +0.589 [+0.505, +0.672] over 55 |
+| answerable, critical | +0.000 [+0.000, +0.000] | +0.129 [-0.003, +0.253] | +0.129 [-0.003, +0.253] over 53 | +0.355 [+0.193, +0.497] | +0.355 [+0.193, +0.497] over 53 | +0.574 [+0.491, +0.649] | +0.574 [+0.491, +0.649] over 53 |
 | answerable, situational | - | - | - | - | - | - | - |
 | unknown | +1.000 [+1.000, +1.000] | +0.692 [+0.111, +1.000] | -0.308 [-0.889, +0.000] over 13 | +0.231 [-0.429, +0.875] | -0.769 [-1.429, -0.154] over 13 | +0.846 [+0.333, +1.000] | -0.154 [-0.667, +0.000] over 13 |
 
-- B - A on the critical answerable rows: not shown (lower bound -0.003, over 55 pairs)
-- C - A on the critical answerable rows: shown (lower bound +0.184, over 55 pairs)
-- D - A on the critical answerable rows: shown (lower bound +0.505, over 55 pairs)
+- B - A on the critical answerable rows: not shown (lower bound -0.003, over 53 pairs)
+- C - A on the critical answerable rows: shown (lower bound +0.193, over 53 pairs)
+- D - A on the critical answerable rows: shown (lower bound +0.491, over 53 pairs)
 
 #### warehouse_a
 
@@ -641,29 +649,29 @@ The headline is the mean of the `now` and `memory` columns, each weighing the la
 
 | family | A | B | B - A | C | C - A | D | D - A |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| **headline** | +0.132 [+0.078, +0.219] | +0.185 [+0.019, +0.325] | +0.053 [-0.160, +0.229] over 68 | +0.366 [+0.213, +0.505] | +0.234 [+0.021, +0.424] over 68 | +0.614 [+0.517, +0.717] | +0.482 [+0.379, +0.610] over 68 |
+| **headline** | +0.137 [+0.082, +0.225] | +0.191 [+0.023, +0.325] | +0.054 [-0.160, +0.230] over 66 | +0.369 [+0.216, +0.514] | +0.232 [+0.014, +0.430] over 66 | +0.609 [+0.509, +0.713] | +0.472 [+0.365, +0.600] over 66 |
 | `now` | +0.000 [+0.000, +0.000] | +0.109 [-0.079, +0.318] | +0.109 [-0.079, +0.318] over 22 | +0.380 [+0.201, +0.586] | +0.380 [+0.201, +0.586] over 22 | +0.596 [+0.463, +0.788] | +0.596 [+0.463, +0.788] over 22 |
-| `memory` | +0.263 [+0.156, +0.438] | +0.261 [+0.008, +0.467] | -0.003 [-0.360, +0.223] over 46 | +0.351 [+0.111, +0.534] | +0.088 [-0.272, +0.340] over 46 | +0.632 [+0.506, +0.781] | +0.368 [+0.254, +0.518] over 46 |
+| `memory` | +0.274 [+0.165, +0.450] | +0.272 [+0.012, +0.473] | -0.002 [-0.360, +0.225] over 44 | +0.358 [+0.109, +0.560] | +0.084 [-0.276, +0.350] over 44 | +0.622 [+0.480, +0.774] | +0.348 [+0.214, +0.508] over 44 |
 | clearance, now (n 22) | +0.000 [+0.000, +0.000] | +0.109 [-0.079, +0.318] | +0.109 [-0.079, +0.318] over 22 | +0.380 [+0.201, +0.586] | +0.380 [+0.201, +0.586] over 22 | +0.596 [+0.463, +0.788] | +0.596 [+0.463, +0.788] over 22 |
-| clearance, memory (n 32) | +0.312 [+0.154, +0.500] | +0.339 [+0.187, +0.500] | +0.027 [+0.000, +0.076] over 32 | +0.200 [-0.132, +0.475] | -0.112 [-0.618, +0.276] over 32 | +0.701 [+0.570, +0.838] | +0.388 [+0.304, +0.461] over 32 |
+| clearance, memory (n 30) | +0.333 [+0.167, +0.524] | +0.362 [+0.201, +0.533] | +0.029 [+0.000, +0.080] over 30 | +0.214 [-0.146, +0.504] | -0.120 [-0.657, +0.287] over 30 | +0.681 [+0.543, +0.822] | +0.348 [+0.271, +0.409] over 30 |
 | memory (n 14) | +0.214 [+0.067, +0.501] | +0.182 [-0.294, +0.513] | -0.032 [-0.618, +0.360] over 14 | +0.502 [+0.070, +0.711] | +0.288 [-0.324, +0.503] over 14 | +0.562 [+0.338, +0.868] | +0.348 [+0.104, +0.633] over 14 |
-| clear_path | +0.185 [+0.091, +0.270] | +0.246 [+0.131, +0.372] | +0.060 [-0.026, +0.159] over 54 | +0.273 [+0.116, +0.465] | +0.088 [-0.141, +0.356] over 54 | +0.658 [+0.540, +0.766] | +0.473 [+0.411, +0.537] over 54 |
+| clear_path | +0.192 [+0.096, +0.281] | +0.255 [+0.140, +0.383] | +0.063 [-0.027, +0.162] over 52 | +0.284 [+0.122, +0.477] | +0.092 [-0.149, +0.364] over 52 | +0.645 [+0.524, +0.750] | +0.453 [+0.400, +0.500] over 52 |
 | ego_mem | +0.214 [+0.067, +0.501] | +0.182 [-0.294, +0.513] | -0.032 [-0.618, +0.360] over 14 | +0.502 [+0.070, +0.711] | +0.288 [-0.324, +0.503] over 14 | +0.562 [+0.338, +0.868] | +0.348 [+0.104, +0.633] over 14 |
 
 | relevance | A | B | B - A | C | C - A | D | D - A |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| answerable, critical | +0.000 [+0.000, +0.000] | +0.124 [-0.003, +0.253] | +0.124 [-0.003, +0.253] over 55 | +0.342 [+0.184, +0.488] | +0.342 [+0.184, +0.488] over 55 | +0.589 [+0.505, +0.672] | +0.589 [+0.505, +0.672] over 55 |
+| answerable, critical | +0.000 [+0.000, +0.000] | +0.129 [-0.003, +0.253] | +0.129 [-0.003, +0.253] over 53 | +0.355 [+0.193, +0.497] | +0.355 [+0.193, +0.497] over 53 | +0.574 [+0.491, +0.649] | +0.574 [+0.491, +0.649] over 53 |
 | answerable, situational | - | - | - | - | - | - | - |
 | unknown | +1.000 [+1.000, +1.000] | +0.692 [+0.111, +1.000] | -0.308 [-0.889, +0.000] over 13 | +0.231 [-0.429, +0.875] | -0.769 [-1.429, -0.154] over 13 | +0.846 [+0.333, +1.000] | -0.154 [-0.667, +0.000] over 13 |
 
-- B - A on the critical answerable rows: not shown (lower bound -0.003, over 55 pairs)
-- C - A on the critical answerable rows: shown (lower bound +0.184, over 55 pairs)
-- D - A on the critical answerable rows: shown (lower bound +0.505, over 55 pairs)
+- B - A on the critical answerable rows: not shown (lower bound -0.003, over 53 pairs)
+- C - A on the critical answerable rows: shown (lower bound +0.193, over 53 pairs)
+- D - A on the critical answerable rows: shown (lower bound +0.491, over 53 pairs)
 
 | length | A | B | C | D |
 | --- | --- | --- | --- | --- |
 | short | +0.231 [+0.000, +0.556] | +0.181 [+0.010, +0.333] | +0.505 [+0.375, +0.637] | +0.637 [+0.437, +0.891] |
-| medium | +0.182 [+0.109, +0.264] | +0.245 [+0.085, +0.438] | +0.277 [+0.062, +0.513] | +0.638 [+0.518, +0.747] |
+| medium | +0.189 [+0.114, +0.271] | +0.254 [+0.090, +0.450] | +0.287 [+0.065, +0.535] | +0.625 [+0.495, +0.740] |
 
 ##### warehouse_a, amr/1
 
@@ -706,8 +714,8 @@ From the comparison above and each run's family rows:
   remembered ones and +0.62 in view, sonnet +0.24 and +0.01, haiku +0.09 and +0.03. The helper's remembered corridors
   (behind it, or after turning, against 15 cm) are the hardest of the release: every model scores below zero there, worse than answering `unknown`
   (opus -0.09, sonnet -0.37, haiku -0.18, on 9 questions), though sonnet and opus score +0.61 and +0.60 on its corridors
-  in view. The drone's are bounded only by building walls: opus +0.70 on the remembered ones and +0.60 in view, sonnet
-  +0.20 and +0.38.
+  in view. The drone's are bounded only by building walls: opus +0.68 on the remembered ones and +0.60 in view, sonnet
+  +0.21 and +0.38.
 - **`closest_approach`** has few rows on these cases (5 on the AMR, 3 on the helper). Its out-of-view twin
   `approach_mem` (11 on the AMR, 5 on the helper) separates opus (+0.45 and +0.34) from sonnet (+0.10 and +0.28) and haiku
   (+0.13 and +0.00), and on the AMR each of the three models made one catastrophe on it: a person it had seen, now hidden,
@@ -729,22 +737,22 @@ its evidence ("Per age of the evidence"), overall and for each job, and the cata
 
 The reported score by the age of the evidence, over every place (the `unknown` rows have no band):
 
-| System | `now` (87) | `recent` (77) | `task` (163) | `earlier` (28) |
+| System | `now` (87) | `recent` (75) | `task` (163) | `earlier` (28) |
 | --- | --- | --- | --- | --- |
-| `claude:opus` (medium) | +0.60 | +0.42 | +0.48 | +0.48 |
-| `claude:sonnet` (medium) | +0.31 | +0.10 | +0.23 | +0.28 |
+| `claude:opus` (medium) | +0.60 | +0.41 | +0.48 | +0.48 |
+| `claude:sonnet` (medium) | +0.31 | +0.11 | +0.23 | +0.28 |
 | `claude:haiku` (medium) | +0.16 | -0.01 | +0.11 | +0.10 |
 
 The catastrophe rate, the share of the harm rows answered that are catastrophes, from each run's `results.md`:
 
 | System | All jobs | `vacuum/2` | `helper/1` | `amr/1` | `drone/1` |
 | --- | --- | --- | --- | --- | --- |
-| `claude:opus` (medium) | 5 of 171 | 2 of 81 | 1 of 24 | 2 of 23 | 0 of 43 |
+| `claude:opus` (medium) | 5 of 169 | 2 of 81 | 1 of 24 | 2 of 23 | 0 of 41 |
 | `claude:sonnet` (medium) | 4 of 130 | 1 of 54 | 1 of 22 | 2 of 25 | 0 of 29 |
 | `claude:haiku` (medium) | 2 of 75 | 1 of 33 | 0 of 8 | 1 of 26 | 0 of 8 |
 
 Every model scores best on what the latest frame shows and lowest on the last 10 s (`recent`), where the thing has just
-left the view: opus +0.60 against +0.42, sonnet +0.31 against +0.10. Older evidence does not score lower still; the
+left the view: opus +0.60 against +0.41, sonnet +0.31 against +0.11. Older evidence does not score lower still; the
 `earlier` band holds 28 questions, too few to read a slope from. The catastrophes are corridors in the apartment that the
 vacuum or the helper would have driven into, one cord haiku missed, and on the AMR people: each model held a remembered
 person farther than they stood once (`approach_mem`), and sonnet and opus each misjudged once how close a person came
@@ -782,18 +790,18 @@ the middle of the three models it ran, and `claude:opus`, the strongest:
 | `apartment_a` | `claude:opus` (medium) | +0.567 [+0.518, +0.642] | well below 1.00 |
 | `warehouse_a` | `claude:sonnet` (medium) | +0.307 [+0.077, +0.499] | about 0.25 to 0.5 |
 | `warehouse_a` | `claude:opus` (medium) | +0.419 [+0.188, +0.638] | well below 1.00 |
-| `downtown_a` | `claude:sonnet` (medium) | +0.366 [+0.213, +0.505] | about 0.25 to 0.5 |
-| `downtown_a` | `claude:opus` (medium) | +0.614 [+0.517, +0.717] | well below 1.00 |
+| `downtown_a` | `claude:sonnet` (medium) | +0.369 [+0.216, +0.514] | about 0.25 to 0.5 |
+| `downtown_a` | `claude:opus` (medium) | +0.609 [+0.509, +0.713] | well below 1.00 |
 
 The share of answers that earn full credit, by ability and place, is in each run's `results.md` (credit bands).
 
 - **Sonnet's band: met.** Sonnet lands at +0.29 in the apartment, +0.31 in the warehouse and +0.37 downtown, inside the
   band of about 0.25 to 0.5 on every place.
 - **Opus does not saturate: met.** It scores +0.42 to +0.61, and none of its counted cells reaches 1.00; its highest are
-  the apartment's relevance (+0.71, 10 questions) and downtown's remembered clearance (+0.70).
+  the apartment's relevance (+0.71, 10 questions) and downtown's remembered clearance (+0.68).
 - **Full credit is rare: met.** Opus earned full credit on 22% of the answerable questions, sonnet on 13% and haiku on 6%,
   inside the 15 to 25% and 10 to 15% expected. Of the corridors, opus earned it on 39% of the vacuum's answerable ones,
-  29% of the helper's and 11% of the drone's.
+  29% of the helper's and 7% of the drone's.
 
 No C, R, rule, share or tolerance moved after the rows were read: the questions are the compile the rows ran on, and the
 commits after them change the documents only.
@@ -834,13 +842,13 @@ data and read the gate score, never the catastrophe term (Section 2).
 | separation | `memory_table` beats the best shortcut (for `ego_now`, also the kind's typical range) by at least 0.40, lower 95% bound above 0.30 |
 | balance | no constant answer, learned on other shifts, beats `all_unknown` |
 
-On the two structure families the map reader (a design diagnostic, in no results table) and `other_case` are references and are left out of the shortcut and
-separation gates, and `path_log` answers from the robot's own log alone: its detour and its longest swept run stand only
-where the lower end of the 95% interval of their gain over `unknown`, over other scripts' records, is above 0. On their
-`memory` rows the current view is gated without a pose key. The evidence verdict, which ships, is stricter than a point
-reading: a shortcut fails when its gain is over the margin with a 95% interval above 0, in the whole group, in any length
-or in either slice ([eval.md](eval.md); [methodology.md](methodology.md), rule 5). The check of 0.11.0's release, from its
-`check_report.json`:
+On the two structure families the map reader (a design diagnostic, in no results table) and `other_case` are references
+and are left out of the shortcut and separation gates, and `path_log` answers from the robot's own log alone: its detour
+and its longest swept run stand only where the lower end of the 95% interval of their gain over `unknown`, over other
+scripts' records, is above 0. On their `memory` rows the current view is gated without a pose key. The evidence verdict,
+which ships, is stricter than a point reading: a shortcut fails when its gain is over the margin with a 95% interval
+above 0, in the whole group, in any length or in either slice ([eval.md](eval.md); [methodology.md](methodology.md),
+rule 5). The check of 0.11.1's release, from its `check_report.json`:
 
 | Layout | Job | Family | Scripts | n | Unknown share | ceiling | knowable | memory_needed | shortcuts | separation | time_needed | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -851,7 +859,7 @@ or in either slice ([eval.md](eval.md); [methodology.md](methodology.md), rule 5
 | `apartment_a` | `helper/1` | `ego_now` | 14 | 49 | 0.000 | ok +1.000 vs 0.95 | ok +0.000 vs 0.02 [+0.000, +0.000] | n/a | ok +0.001 vs 0.1 | ok +0.999 vs 0.4 [+0.996, +1.000] | n/a | pass |
 | `apartment_a` | `helper/1` | `object_where` | 16 | 73 | 0.247 | ok +1.000 vs 0.95 | ok +0.000 vs 0.02 [+0.000, +0.000] | ok +0.000 vs 0.05 | ok +0.000 vs 0.1 | ok +0.753 vs 0.4 [+0.633, +0.862] | n/a | pass |
 | `apartment_a` | `helper/1` | `open_heading` | 14 | 54 | 0.000 | ok +1.000 vs 0.95 | n/a | ok +0.000 vs 0.05 | ok +0.037 vs 0.1 | ok +1.000 vs 0.4 [+1.000, +1.000] | n/a | pass |
-| `apartment_a` | `helper/1` | `task_things` | 13 | 47 | 0.000 | ok +1.000 vs 0.95 | ok +0.000 vs 0.02 [+0.000, +0.000] | ok +0.000 vs 0.05 | ok +0.007 vs 0.1 | ok +1.000 vs 0.4 [+1.000, +1.000] | n/a | pass |
+| `apartment_a` | `helper/1` | `task_things` | 13 | 47 | 0.000 | ok +1.000 vs 0.95 | ok +0.000 vs 0.02 [+0.000, +0.000] | ok +0.000 vs 0.05 | ok +0.000 vs 0.1 | ok +1.000 vs 0.4 [+1.000, +1.000] | n/a | pass |
 | `apartment_a` | `helper/1` | `way_to` | 11 | 29 | 0.241 | ok +1.000 vs 0.95 | ok +0.000 vs 0.02 [+0.000, +0.000] | ok +0.000 vs 0.05 | ok +0.029 vs 0.1 | ok +0.759 vs 0.4 [+0.613, +1.000] | n/a | pass |
 | `apartment_a` | `vacuum/2` | `clear_path` | 14 | 315 | 0.016 | ok +1.000 vs 0.95 | n/a | ok +0.013 vs 0.05 | ok +0.000 vs 0.1 | ok +0.984 vs 0.4 [+0.962, +0.997] | n/a | pass |
 | `apartment_a` | `vacuum/2` | `ego_mem` | 14 | 83 | 0.205 | ok +1.000 vs 0.95 | ok +0.000 vs 0.02 [+0.000, +0.000] | ok +0.000 vs 0.05 | ok +0.000 vs 0.1 | ok +0.795 vs 0.4 [+0.717, +0.873] | n/a | pass |
@@ -859,7 +867,7 @@ or in either slice ([eval.md](eval.md); [methodology.md](methodology.md), rule 5
 | `apartment_a` | `vacuum/2` | `open_heading` | 14 | 134 | 0.000 | ok +1.000 vs 0.95 | n/a | ok +0.000 vs 0.05 | ok +0.000 vs 0.1 | ok +1.000 vs 0.4 [+1.000, +1.000] | n/a | pass |
 | `apartment_a` | `vacuum/2` | `tangle_ahead` | 14 | 133 | 0.000 | ok +1.000 vs 0.95 | ok +0.000 vs 0.02 [+0.000, +0.000] | ok +0.000 vs 0.05 | ok +0.012 vs 0.1 | ok +1.000 vs 0.4 [+1.000, +1.000] | n/a | pass |
 | `apartment_a` | `vacuum/2` | `task_things` | 9 | 22 | 0.000 | ok +1.000 vs 0.95 | ok +0.000 vs 0.02 [+0.000, +0.000] | ok +0.000 vs 0.05 | ok +0.000 vs 0.1 | ok +1.000 vs 0.4 [+1.000, +1.000] | n/a | pass |
-| `downtown_a` | `drone/1` | `clear_path` | 16 | 196 | 0.092 | ok +1.000 vs 0.95 | n/a | ok +0.000 vs 0.05 | ok +0.000 vs 0.1 | ok +0.908 vs 0.4 [+0.865, +0.948] | n/a | pass |
+| `downtown_a` | `drone/1` | `clear_path` | 16 | 194 | 0.093 | ok +1.000 vs 0.95 | n/a | ok +0.000 vs 0.05 | ok +0.000 vs 0.1 | ok +0.907 vs 0.4 [+0.863, +0.948] | n/a | pass |
 | `downtown_a` | `drone/1` | `ego_mem` | 14 | 68 | 0.206 | ok +1.000 vs 0.95 | ok +0.000 vs 0.02 [+0.000, +0.000] | ok +0.000 vs 0.05 | ok +0.000 vs 0.1 | ok +0.794 vs 0.4 [+0.695, +0.879] | n/a | pass |
 | `warehouse_a` | `amr/1` | `approach_mem` | 15 | 47 | 0.000 | ok +1.000 vs 0.95 | ok +0.000 vs 0.02 [+0.000, +0.000] | ok +0.000 vs 0.05 | ok +0.000 vs 0.1 | ok +1.000 vs 0.4 [+1.000, +1.000] | n/a | pass |
 | `warehouse_a` | `amr/1` | `closest_approach` | 14 | 24 | 0.000 | ok +1.000 vs 0.95 | ok +0.000 vs 0.02 [+0.000, +0.000] | ok +0.000 vs 0.05 | ok +0.000 vs 0.1 | ok +1.000 vs 0.4 [+1.000, +1.000] | n/a | pass |
@@ -875,12 +883,15 @@ Point reading: pass. Interval reading: pass.
 No instrument is broken.
 - apartment_a vacuum/2: 4 of 36 compiled cases ask nothing and are not checked
 
-On 0.11.0's compile (1,761 questions) the free check of the dev root passes in every reading on
-every job: `ALL GATES PASS` and `EVIDENCE VERDICT PASSES`, per job and in full. The largest lead a shortcut has over
-`all_unknown` is +0.04 on `open_heading` for the helper and +0.00 for the vacuum, +0.03 on `way_to`, +0.01 on the
-helper's `task_things` and on `tangle_ahead`, and +0.00 on `approach_mem`, against a gate line of +0.10. No family
-failed, so none is disclosed as failing. 0.10.0's check passed in every reading too
-([history/report-0.10.0.md](history/report-0.10.0.md), Section 6).
+On 0.11.1's compile (1,759 questions) the free check of the dev root passes in every reading on every job: `ALL GATES
+PASS` and `EVIDENCE VERDICT PASSES`, per job and in full. The largest lead a shortcut has over `all_unknown` is +0.04 on
+`open_heading` for the helper and +0.00 for the vacuum, +0.03 on `way_to`, +0.01 on `tangle_ahead`, and +0.00 on the
+helper's `task_things` and on `approach_mem`, against a gate line of +0.10. No family failed, so none is disclosed as
+failing. 0.11.0's check (1,761 questions) passed the same way. Two gate values moved between the two: the drone's
+`clear_path` `separation` reads +0.907 where it read +0.908, on 194 questions where it had 196, and the helper's
+`task_things` shortcut lead reads +0.00 where it read +0.01, because the scorer no longer lets an item inside a
+don't-care circle lower a list's credit, which the in-pool shortcuts' best constants are chosen by. 0.10.0's check
+passed in every reading too ([history/report-0.10.0.md](history/report-0.10.0.md), Section 6).
 
 **The review and its repairs.** After the questions were built, an independent review of the branch read the code and the
 compiled data. It found one blocker and several faults, and every one was repaired without moving a threshold to a score

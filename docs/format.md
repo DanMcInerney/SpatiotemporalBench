@@ -25,10 +25,12 @@ DATASET/
     <sid>/  timeline.json  instances/%06d.png  depth/%06d.png  instance_map.json  visibility.jsonl
             perception_ids.jsonl  render_log.json
     <cid>/  case.json  questions.jsonl  gold.jsonl
-  runs/<system>-<cid>/             what `stbench run` writes: answers, scored rows, summary (never under the two above)
-  runs/<system>-<channel>[...]/    what `stbench eval` writes: results.json, results.md, cases/<cid>/
   check_report.json                what `stbench check` writes
 ```
+
+Runs are not part of the dataset (0.11.1; before, `DATASET/runs/...`): `stbench run` and `stbench eval` write their
+`runs/...` folders (below) under the current directory, so a run started outside the dataset leaves it as it was
+downloaded.
 
 A **script** is one robot doing one job on one map for a number of tasks; a **case** is a window of a script's tasks
 that a system is run on from its first step (`short`: 1 task, `medium`: 2-3, `long`: 4-6; every release since 0.4.1
@@ -355,7 +357,7 @@ keys:
 | Credit | Scores | `tolerances` |
 | --- | --- | --- |
 | `graded` | `offset`, `number`, `position` | `resolution_m` (the gold's one-pixel error `rho`, at least 1 cm), `need_m` (the job's C or R), `harm` (`"over"`, `"radial"` or null) and, for a `number`, `threshold_m` (the body's length plus C); a `position` holds the first three alone (no room: its direction quarter is `e <= R`). The four quarters on the error against the need ([questions.md](questions.md), "Credit"): `harm` `over` halves the need when the answer is longer than the gold, `radial` when an offset's error points away from the camera along the gold's bearing, null never. An offset is judged by its 2-D error, `hypot(d_ahead, d_left)`. The row's `range_m` and the job's numbers do not set the credit. `ego_now`, `ego_mem`, `person_mem` (C, `radial`), `clear_path`, `closest_person` (C, `over`) and `object_where` (R, null) |
-| `graded_set` | `positions` | `match_m` (the match radius, widened by the largest item), `resolutions_m` (one number per gold item, in the gold's item order) and `fp_weight` (0.5). The answer's items are matched to the gold's one to one by maximum summed credit, each pair within four times `match_m` earning its four quarters at its item's resolution; an unmatched answered item outside every don't-care circle is false; `s` is the matched credit over `|gold| + fp_weight |false|`. `task_things` |
+| `graded_set` | `positions` | `match_m` (the match radius, widened by the largest item), `resolutions_m` (one number per gold item, in the gold's item order) and `fp_weight` (0.5). The answer's items outside every don't-care circle are matched to the gold's one to one by maximum summed credit, each pair within four times `match_m` earning its four quarters at its item's resolution, then the items inside a circle are matched the same way to the gold items left over (so a circle only adds credit); an unmatched answered item outside every circle is false; `s` is the matched credit over `|gold| + fp_weight |false|`. `task_things` |
 | `regret` | `heading` | `profile_m` (the run in metres of each heading, a list of `360 / step_deg` numbers, null where the corridor was not seen), `step_deg`, `resolution_m`, `need_m` (C) and `threshold_m` (the body's length plus C). The answered heading is rounded to the step; its run is `d` (0 for a null) and the regret `r = max(profile) - d` is scored with the four quarters, the direction quarter a run of at least half the best and the harmful side a run under `threshold_m`. Headings wrap at +-180. `open_heading` |
 | `ladder` | `position`, `offset`, `number`, `time` | `{"ladder": [t1, t2, ...]}`: strictly increasing positive thresholds, metres for a position, an offset or a number and seconds for a time. An offset is judged by its 2-D error, `hypot(d_ahead, d_left)`. Three rungs are absolute and a rung met is a third of the credit (0.7.0 and 0.8.0): an offset (`ego_now`, `ego_mem`, `person_mem`) and the `number` of `clear_path` and `closest_person` had the job's clearance ladder `rules.clearance_ladder(C)`, C/2, C and 2C; a map place (`object_where`) `clearance_ladder(R)` of the job's re-find radius, each rung grown by `rules.hidden_widening` for a thing whose top the camera never saw. A compile before 0.9.0 still carries them, and 0.9.0's scorer scores such a row exactly as 0.8.0's did. The change families (no job asks them) keep the range-relative `rules.relative_ladder(r, widening)`, three rungs of `max(floor, share * r) + widening` with shares 0.10, 0.25 and 0.50 of the slant range r and floors 5, 10 and 20 cm. `distance_between` (no job asks it) has the job's four rungs, 0.25, 0.5, 1 and 2 m in a home, plus both things' `rules.widening` (it was `relative` in 0.4.x) |
 | `region` | `position` | `{"erode_m": x}` with x at least 0, and `region` the polygon |
@@ -403,8 +405,8 @@ illustrative. The rungs are the ladder's 0.25, 0.5, 1 and 2 m plus 0.4 m: the to
 ## `runs/<system>-<cid>/`
 
 `stbench run SYSTEM DATASET/private/<cid>` runs one system over one case through the stream and writes one folder:
-`DATASET/runs/<system>-<case id>/`, with every character of SYSTEM outside `[A-Za-z0-9._-]` turned into `_`
-(`codex:gpt-6-luna` gives `codex_gpt-6-luna-<case id>`), or the folder `--out` names. A folder under the dataset's
+`runs/<system>-<case id>/` in the current directory, with every character of SYSTEM outside `[A-Za-z0-9._-]` turned into
+`_` (`codex:gpt-6-luna` gives `codex_gpt-6-luna-<case id>`), or the folder `--out` names. A folder under the dataset's
 `scripts/` or `private/` is refused. A run scores what it ran, so a case with no `gold.jsonl` is refused (exit 2) before
 anything is sent. Exit 0: the case completed. Exit 1: it ended early, the run was invalid or could not be scored, or an
 agent's runner failed. Exit 2: the run was refused before anything was sent.

@@ -44,11 +44,11 @@ For each (layout, job, family), `suite_balance.read`:
    questions), the best constant is the best of many on a few correlated golds. It is reported as `thin` with its
    numbers and the reason. A group of one script has no interval at all.
 
-A family above 0 does not ship on that job. The 0.11.0 release reads 23 groups: none is thin and none fails. The verdict is part of `stbench check --verdict evidence` (its exit code and
-`passed_evidence`); the printout has one `BALANCE ok|thin|FAIL layout job family: ...` line for every family under any
-verdict, before the gate table's `EVIDENCE VERDICT PASSES|FAILS` line, which counts the balance rule and the broken
-instruments too, and the report's `balance` holds the entries (`constant`, `mean`, `ci`, `n`, `scripts`, `thin`,
-`fails`).
+A family above 0 does not ship on that job. The 0.11.0 and 0.11.1 releases read 23 groups each: none is thin and none
+fails. The verdict is part of `stbench check --verdict evidence` (its exit code and `passed_evidence`); the printout has
+one `BALANCE ok|thin|FAIL layout job family: ...` line for every family under any verdict, before the gate table's
+`EVIDENCE VERDICT PASSES|FAILS` line, which counts the balance rule and the broken instruments too, and the report's
+`balance` holds the entries (`constant`, `mean`, `ci`, `n`, `scripts`, `thin`, `fails`).
 
 ## The shares
 

@@ -192,8 +192,14 @@ The hover's height is the base's at `before_lower`; a `climb_out` keyframe at or
 
 ## What the drone asks
 
-**0.11.0** asks what 0.10.0 did (below). The release holds 264 questions on the drone's 36 cases: `clear_path` 196 and
-`ego_mem` 68.
+**0.11.1** asks what 0.11.0 did, except that the corridor is asked only where its evidence frame reads the wall's foot
+to within C/2 at one pixel ([families/clear_path.md](families/clear_path.md), "Tied to its foot"). The release holds 262
+questions on the drone's 36 cases: `clear_path` 194 and `ego_mem` 68 (0.11.0: 264, `clear_path` 196). In the short and
+medium cases that leaves 197 look questions (`clear_path` 142, `ego_mem` 55), one question in 12.8 frames (the 2,530
+frames of the short and medium cases over 197); harm is 72% of them and 74% of all (194 of 262), and the clearance cells
+hold 96 questions in `now` and 98 in `memory`.
+
+**0.11.0** asks what 0.10.0 did (below).
 
 **0.10.0** (`job_drone.py`; the reasoning is [question-design.md](question-design.md)). A look point has two slots:
 `clear_path` at 60% (slot 1) and `ego_mem` at 70% (slot 2); nothing at its end. The frames of `before_lower` and
@@ -206,7 +212,8 @@ The hover's height is the base's at `before_lower`; a `climb_out` keyframe at or
   stay for a dataset with the supply.
 - **Measured** on the dev root after the repair (short and medium cases): 433 look points and 199 look questions
   (`clear_path` 144, `ego_mem` 55), one question in 12.7 frames (0.9.0: 1 in 29.8); harm is 72% of the questions (all
-  lengths: 196 of 264, 74%). The drone's clearance cells hold 96 questions in `now` and 100 in `memory`.
+  lengths: 196 of 264, 74%). The drone's clearance cells hold 96 questions in `now` and 100 in
+  `memory`. (These are 0.11.0's; 0.11.1's are above.)
 
 **0.9.0 (history).** The table is 0.8.0's: `clear_path` at 30% (slot 1), `ego_mem` at 85% (slot 2), nothing at the end,
 and the job keeps 75% of its `unknown` corridors. The corridor's directions are now declared (`JobSpec.clear_directions`

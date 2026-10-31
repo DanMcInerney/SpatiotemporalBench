@@ -386,8 +386,8 @@ two terms are halved on the harmful side (below); `2 rho` is not. The constant i
 **The door, scored.** A door 5 m away, answered 4 m, scores 0.00 on every ground robot, as good as `unknown`. These
 are the cases for each job, a gold of 5 m. For the vacuum, helper and drone it is a corridor (`clear_path`, a number);
 the AMR asks no corridor, so for it the gold is a thing 5 m straight ahead (`ego_now`, an offset). One pixel at 5 m is
-each job's median `rho / range` times 5: 0.24 m (vacuum), 0.14 m (helper), 0.11 m (AMR) and 0.03 m (drone). The
-answers above 5 m are the harmful side.
+each job's median `rho / range` times 5: 0.24 m (vacuum), 0.14 m (helper), 0.11 m (AMR) and 0.03 m (drone); the table
+uses them unrounded: 0.2365, 0.1365, 0.108 and 0.034 m. The answers above 5 m are the harmful side.
 
 | Answer | Vacuum 0.10.0 | Vacuum 0.11 | Helper 0.10.0 | Helper 0.11 | AMR 0.10.0 | AMR 0.11 | Drone 0.10.0 | Drone 0.11 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

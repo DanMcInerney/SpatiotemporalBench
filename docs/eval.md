@@ -78,11 +78,12 @@ swapped brief would contradict it. A case that cannot run for its own reason (no
 
 ## RUNDIR
 
-By default `D/runs/<system>-<channel>` (characters of the system outside `[A-Za-z0-9._-]` become `_`), with `-<brief>`
-and `-during-off` added when those are not the defaults. Each case writes `cases/<cid>/`: `answers.jsonl`,
-`rows.jsonl`, `summary.json` (the keys of `docs/format.md`'s run folder, with `remote_memory`, `cost_usd` and `cost_note`
-from the stream's usage report and the price table) and whatever an agent writes itself (`codex.calls.jsonl`,
-`codex.summary.json`). `results.json` and `results.md` are written from those folders, never from memory.
+By default `runs/<system>-<channel>` in the current directory, not in the dataset (0.11.1; before, `D/runs/...`;
+characters of the system outside `[A-Za-z0-9._-]` become `_`), with `-<brief>` and `-during-off` added when those are
+not the defaults. Each case writes `cases/<cid>/`: `answers.jsonl`, `rows.jsonl`, `summary.json` (the keys of
+`docs/format.md`'s run folder, with `remote_memory`, `cost_usd` and `cost_note` from the stream's usage report and the
+price table) and whatever an agent writes itself (`codex.calls.jsonl`, `codex.summary.json`). `results.json` and
+`results.md` are written from those folders, never from memory.
 
 ## Resume
 
@@ -394,14 +395,15 @@ beside it, below), so it works on a run that is still going, was killed or has n
 
 ```sh
 stbench view runs/luna --data data                # writes runs/luna/view.html (and view.html.frames/), prints its path
-stbench view data/runs/luna-arms --out luna.html   # RUN_DIR under DATASET/runs/: --data is found by itself
+stbench view runs/luna-arms --data data --out luna.html
 ```
 
 RUN_DIR is a run folder of `eval`, a folder of run folders (the arms of `--arms`, each listed by its folder's name, with
 a selector on the page) or the folder one `stbench run` wrote. The dataset is the one the run ran on, given with
-`--data` or found as the nearest folder above RUN_DIR that holds `private/` and `scripts/`; without either the command
-exits 2. It also exits 2, writing nothing, when RUN_DIR holds no run and when `--out` is under the dataset's `scripts/`
-or `private/`: the page holds the gold, which is public in this release and which a system must never be handed.
+`--data` or found as the nearest folder above RUN_DIR that holds `private/` and `scripts/` (a run at the default `runs/`
+is not inside the dataset, so it needs `--data`); without either the command exits 2. It also exits 2, writing
+nothing, when RUN_DIR holds no run and when `--out` is under the dataset's `scripts/` or `private/`: the page holds the
+gold, which is public in this release and which a system must never be handed.
 
 The page is one self-contained file: no server, no network, no external script, style or font, and it opens from disk
 (the pictures it links are other files, below). Its header gives the system, the channel, the brief, whether the during

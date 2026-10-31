@@ -52,24 +52,26 @@ def test_arms_are_seeded_per_case(tmp_path, monkeypatch):
 
 def test_arm_folders_and_stamps(tmp_path, monkeypatch, capsys):
     """Contract (plan §5.1): a brief lever runs `RUNDIR/brief-<value>` folders each stamped with its value and nothing
-    else changed; the default RUNDIR is `DATA/runs/<system>-<channel>` with `-<brief>` and `-during-off` added for the
-    options that are not the lever and not their defaults (a system's characters outside `[A-Za-z0-9._-]` become `_`);
-    a rerun of the arms skips what is finished in each folder, and a lever may not be given as an option too (the
-    refusal is in test_eval_run). Regression caught: arms that share a folder, a stamp of the wrong value, or a rerun
-    that repeats an arm."""
+    else changed; the default RUNDIR is `runs/<system>-<channel>` in the
+    current directory, not in the dataset, with `-<brief>` and `-during-off` added for the options that are not the
+    lever and not their defaults (a system's characters outside `[A-Za-z0-9._-]` become `_`); a rerun of the arms skips
+    what is finished in each folder, and a lever may not be given as an option too (the refusal is in test_eval_run).
+    Regression caught: arms that share a folder, a stamp of the wrong value, or a rerun that repeats an arm."""
     register_agent(monkeypatch)
-    hand_dataset(tmp_path)
-    assert cli("fake:ok", "--data", tmp_path, "--arms", "brief=neutral,correct", "--during", "off") == 0
+    data = tmp_path / "data"
+    hand_dataset(data)
+    assert cli("fake:ok", "--data", data, "--arms", "brief=neutral,correct", "--during", "off") == 0
     out = tmp_path / "runs" / "fake_ok-rgb_pose-during-off"
+    assert not (data / "runs").exists()
     assert sorted(p.name for p in out.iterdir()) == ["brief-correct", "brief-neutral"]
     docs = {p.name: results(p) for p in out.iterdir()}
     assert {name: (d["brief"], d["during"]) for name, d in docs.items()} == {"brief-correct": ("correct", False),
                                                                            "brief-neutral": ("neutral", False)}
     assert len(RUNS) == 4 and {(r["brief"], r["during"]) for r in RUNS} == {("correct", "off"), ("neutral", "off")}
     capsys.readouterr()
-    assert cli("fake:ok", "--data", tmp_path, "--arms", "brief=neutral,correct", "--during", "off") == 0
+    assert cli("fake:ok", "--data", data, "--arms", "brief=neutral,correct", "--during", "off") == 0
     assert len(RUNS) == 4
-    assert cli("fake:ok", "--data", tmp_path, "--arms", "during=on,off", "--brief", "neutral") == 0
+    assert cli("fake:ok", "--data", data, "--arms", "during=on,off", "--brief", "neutral") == 0
     assert sorted(p.name for p in (tmp_path / "runs" / "fake_ok-rgb_pose-neutral").iterdir()) == [
         "during-off", "during-on"]
 

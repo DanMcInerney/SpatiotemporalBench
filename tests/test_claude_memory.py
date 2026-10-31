@@ -316,7 +316,7 @@ def test_eval_runs_the_claude_agent_with_a_memory_and_names_it(tmp_path, monkeyp
     monkeypatch.setattr(cmd_claude, "make_claude", lambda model, reasoning, **given: fake.new(
         model=model, reasoning=reasoning, **given))
     assert eval_cli("claude:sonnet", "--data", data, "--memory", held.path) == 0
-    out = data / "runs" / "claude_sonnet-rgb_pose-memory-memory"
+    out = tmp_path / "runs" / "claude_sonnet-rgb_pose-memory-memory"
     report = (out / "results.md").read_text(encoding="utf-8")
     assert results(out)["memory"] == "mem" and "claude:sonnet with memory mem" in report
     (only,) = fake.processes()

@@ -75,7 +75,7 @@ def test_a_fake_codex_case_runs_end_to_end(tmp_path, monkeypatch, capsys):
     case = small_case(tmp_path / "data")
     fake = Fake(tmp_path)
     assert run(monkeypatch, fake, "codex:fake-model", case.private, "--reasoning", "medium", "--timeout", "90") == 0
-    out = tmp_path / "data" / "runs" / f"codex_fake-model-{case.id}"
+    out = tmp_path / "runs" / f"codex_fake-model-{case.id}"
     assert jsonl(out / "answers.jsonl") == [{"qid": qid(1), "answer": {"type": "number", "value": 4}},
                                             {"qid": qid(2), "answer": {"type": "position", "xy": [6.0, 0.0]}}]
     harness = json.loads((out / "summary.json").read_text(encoding="utf-8"))
@@ -131,7 +131,7 @@ def test_a_fake_codex_case_runs_on_detections_with_text_for_images(tmp_path, mon
     case = small_case(tmp_path / "data")
     fake = Fake(tmp_path)
     assert run(monkeypatch, fake, "codex:fake-model", case.private, "--channel", "detections") == 0
-    out = tmp_path / "data" / "runs" / f"codex_fake-model-{case.id}"
+    out = tmp_path / "runs" / f"codex_fake-model-{case.id}"
     assert [a["answer"] for a in jsonl(out / "answers.jsonl")] == [{"type": "number", "value": 4},
                                                                      {"type": "position", "xy": [6.0, 0.0]}]
     summary = json.loads((out / "codex.summary.json").read_text(encoding="utf-8"))
@@ -196,7 +196,7 @@ def test_codex_failures_end_the_case(tmp_path, monkeypatch, capsys):
     case = small_case(tmp_path / "data")
     fake = Fake(tmp_path, {0: {"pulls": 4, "fail_late": "limit"}})  # F0-F2 and F3 with the ask are pulls 1-4; the limit
     assert run(monkeypatch, fake, "codex:fake-model", case.private) == 1
-    out = tmp_path / "data" / "runs" / f"codex_fake-model-{case.id}"
+    out = tmp_path / "runs" / f"codex_fake-model-{case.id}"
     harness = json.loads((out / "summary.json").read_text(encoding="utf-8"))
     assert harness["status"] == "ended: ask: TransportError: limit"
     assert harness["failures"] == {"case ended: ask": 2}
@@ -226,7 +226,7 @@ def test_a_pull_that_does_not_come_in_time_ends_the_case_and_fails_its_questions
     began = time.monotonic()
     assert run(monkeypatch, fake, "codex:fake-model", case.private, "--timeout", "5") == 1
     assert 4.5 < time.monotonic() - began < 90
-    out = tmp_path / "data" / "runs" / f"codex_fake-model-{case.id}"
+    out = tmp_path / "runs" / f"codex_fake-model-{case.id}"
     harness = json.loads((out / "summary.json").read_text(encoding="utf-8"))
     assert harness["status"] == "ended: observe: TransportError: timeout"
     assert harness["failures"] == {"case ended: observe": 2}

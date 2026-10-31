@@ -35,8 +35,8 @@ def test_the_headline_weighs_abilities_equally_in_a_column_and_the_columns_equal
             *scored("object_was", [1]), *scored("task_things", [0, 0, 0, 0])]
     agg = aggregate(rows, n_boot=50)
     assert agg["headline"]["mean"] == pytest.approx(5 / 12)
-    assert {k: (c["mean"], c["n"]) for k, c in agg["columns"].items()} == pytest.approx(
-        {"now": (1 / 4, 4), "memory": (7 / 12, 9)})
+    assert {k: c["mean"] for k, c in agg["columns"].items()} == pytest.approx({"now": 1 / 4, "memory": 7 / 12})
+    assert {k: c["n"] for k, c in agg["columns"].items()} == {"now": 4, "memory": 9}
     assert agg["abilities_mean"]["mean"] == pytest.approx(1 / 2) and agg["pooled"]["mean"] == pytest.approx(5 / 13)
     assert {k: v["mean"] for k, v in agg["by"]["ability"].items()} == pytest.approx(
         {"distance": 1 / 4, "memory": 3 / 4, "change": 1.0, "relevance": 0.0})

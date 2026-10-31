@@ -15,7 +15,8 @@ another script's item within 0.5 m) and "on the floor of the rooms you cleaned" 
 a layout prior that no sensor reads. A family that fails a gate on a job is dropped from that job by rule
 ([question-design.md](../question-design.md), section 9), and methodology rule 5 asks a fact that is the same in every
 case of a place only of places never seen. The helper's route predicate keeps its items off the recurring spots (its
-`path_log_in_pool` reads -0.115 on the 0.11.0 release data, the AMR's -0.065).
+`path_log_in_pool` reads -0.221 on the 0.11.1 release data, the AMR's -0.065; it read -0.115 on 0.11.0's, before the
+scorer stopped a don't-care circle from costing a list credit).
 **In 0.11.0 the vacuum asks it again, as the list of what its brush could catch**, the "list limited to things off the
 layout's recurring spots" this page named as the way back: the predicate keeps `rooms` and
 `floor`, names the kinds a brush catches as the only items (`TaskThings.item_kinds`) and makes the kinds that recur at one
@@ -158,9 +159,11 @@ long cases and +0.135 on the medium ones): the kinds that recur at one spot are 
 towel recur at 0 to 43% within 0.1 m ([`tangle_ahead`](tangle_ahead.md)). No fallback or drop rule applied and no
 threshold moved. The release check reads the same way: ceiling, `knowable`, `memory_needed` (`current_view` -0.545),
 shortcuts and separation as above, `ALL GATES PASS` and `EVIDENCE VERDICT PASSES` over the four jobs; `path_log_in_pool`
-scores -0.504 and `current_view_prior_in_pool` -0.496, and the best held-out constant gains -0.496 over `all_unknown`
-(interval -0.765 to -0.149), so none beats abstaining. The helper's and the AMR's lists pass in the same check, their
-largest shortcut leads being +0.01 (helper) and +0.00 (AMR) against the line of 0.10.
+scores -0.458 and `current_view_prior_in_pool` -0.452 (0.11.0's release check read -0.504 and -0.496, before the
+scorer stopped a don't-care circle from costing a list credit), and the best held-out constant gains -0.452 over
+`all_unknown` (interval -0.720 to -0.105), so none beats abstaining. The helper's and the AMR's lists pass in the same
+check, their largest shortcut leads being +0.00 (helper) and +0.00 (AMR) against the line of 0.10 (the helper's read
++0.01 in 0.11.0's).
 
 ## Supply
 

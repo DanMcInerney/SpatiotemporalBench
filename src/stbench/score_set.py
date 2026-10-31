@@ -10,14 +10,15 @@ a true positive (the radius never costs it its match). Where two answers could t
 region is left unmatched, so which one matches never changes the score. An answer point repeated twice matches one gold
 point once, and the repeat is a false positive (unless it lies in a region).
 
-A `graded_set` scores a `positions` answer per item rather than by count: the answer's items are matched
-one to one to the gold's by maximum summed credit (`assignment`, the Hungarian method), each pair within `MATCH_REACH`
-match radii earning the four quarters of `credit_kernel.graded` at its own gold item's resolution. A list item is a
-place (0.11.0): the pair earns its direction quarter within the match radius M, as a single place does within R
-(docs/methodology.md rule 7), and not at any distance up to the reach; the other three quarters are unchanged. A missed
-gold item costs a whole item and a false one (an unmatched answer outside every don't-care circle) `fp_weight` of one.
-When there is nothing to list, the empty list is the one thing to find, so false places dilute it as they dilute a list
-of one thing (0.11.0): one false place no longer scores as ten do.
+A `graded_set` scores a `positions` answer per item rather than by count: the answer's items are matched one to one to
+the gold's by maximum summed credit (`assignment`, the Hungarian method), each pair within `MATCH_REACH` match radii
+earning the four quarters of `credit_kernel.graded` at its own gold item's resolution. The items outside every
+don't-care circle are paired first; those inside a circle then take only the gold items left over, so a circle can add a
+match to a list and never cost it one. A list item is a place (0.11.0): the pair earns its direction quarter within the
+match radius M, as a single place does within R (docs/methodology.md rule 7), and not at any distance up to the reach;
+the other three quarters are unchanged. A missed gold item costs a whole item and a false one (an unmatched answer
+outside every don't-care circle) `fp_weight` of one. When there is nothing to list, the empty list is the one thing to
+find, so false places dilute it as they dilute a list of one thing (0.11.0): one false place no longer scores as ten do.
 
 A `cells` answer is a set of grid cells (`grid.cell`): F1 of the two sets, with the gold's don't-care cells dropped from
 both sides (the list credits above drop unmatched answer items only).
@@ -139,22 +140,30 @@ def graded_set(answer: Positions, gold: Positions, match_m: float, resolutions_m
     within `MATCH_REACH * match_m` of a gold item in the floor plane, earning `credit_kernel.graded(d, resolutions_m[j],
     match_m, d <= match_m, False)` for gold item j, `d` their distance: a list item is a place, so a pair earns its
     direction quarter within the match radius, as a place does within R (methodology rule 7), and nowhere else. The
-    pairs are the assignment of the largest summed credit. An answer item that is in no pair and in no don't-care
-    circle of the gold is false."""
+    answer items outside every don't-care circle of the gold are paired first, by the assignment of the largest summed
+    credit, and one that is in no pair is false. The items inside a circle are then paired the same way with the gold
+    items left over: they can earn a match but never take a gold item from an item outside, so adding an item inside a
+    circle never lowers the credit, and an unmatched one is neither true nor false."""
     inside_circle = [any(math.dist(a.xy, r.xy) <= r.radius + EPS for r in gold.dont_care) for a in answer.items]
-    # an answer outside every circle comes first, so of two that tie for a gold item the one inside is left over
-    items = [a for a, ig in zip(answer.items, inside_circle, strict=True) if not ig]
-    kept = len(items)
-    items += [a for a, ig in zip(answer.items, inside_circle, strict=True) if ig]
+    outside = [a for a, ig in zip(answer.items, inside_circle, strict=True) if not ig]
+    circled = [a for a, ig in zip(answer.items, inside_circle, strict=True) if ig]
     reach = MATCH_REACH * match_m + EPS
-    credit = [[graded(d, resolutions_m[j], match_m, d <= match_m + EPS, False)
-               if (d := math.dist(a.xy, g.xy)) <= reach else 0.0 for j, g in enumerate(gold.items)] for a in items]
+
+    def credits(items: Sequence[Point], golds: Sequence[int]) -> list[list[float]]:
+        return [[graded(d, resolutions_m[j], match_m, d <= match_m + EPS, False)
+                 if (d := math.dist(a, gold.items[j].xy)) <= reach else 0.0 for j in golds] for a in items]
+
+    every = range(len(gold.items))
+    credit = credits([a.xy for a in outside], every)
     pairs = [(i, j) for i, j in assignment(credit) if credit[i][j] > 0]
-    paired = {i for i, _ in pairs}
-    false = sum(i not in paired for i in range(kept))
+    total, taken = sum(credit[i][j] for i, j in pairs), {j for _, j in pairs}
+    left = [j for j in every if j not in taken]
+    credit = credits([a.xy for a in circled], left)
+    total += sum(credit[i][k] for i, k in assignment(credit) if credit[i][k] > 0)
+    false = len(outside) - len(pairs)
     if not gold.items:
         return 1 / (1 + fp_weight * false)
-    return sum(credit[i][j] for i, j in pairs) / (len(gold.items) + fp_weight * false)
+    return total / (len(gold.items) + fp_weight * false)
 
 
 def cells_f1(answer: Cells, gold: Cells) -> float:

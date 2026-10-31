@@ -13,7 +13,9 @@ frame certifies empty: it is not asked.
 landed on its nest or beside the street trees' crowns (the floor is the tallest crown, the body's half height and a
 margin, declared by the job). The direction is `clear_move.draw` over `JobSpec.clear_directions`, which a flier declares
 as ahead, back: `stable_hash(case id, k, "direction") % 2`. The hash reads nothing of the world, so the direction asked
-tells nothing of what is there.
+tells nothing of what is there. An answerable corridor is asked only where the evidence frame (below) reads the wall's
+foot to within C/2 at one pixel (`corridor_screens.error_tied`, the tie a ground corridor's stopper passes); a camera
+level with the foot's ground has no bound and is never asked, and an `unknown` corridor has no foot and is not screened.
 
 **The classes.** The wall the corridor stops at (the first it meets: the body touches it before any beyond) is **seen**
 when some keyframe of the window up to `k` (never one before the case's first, which the system was not sent) shows
@@ -35,7 +37,7 @@ from __future__ import annotations
 
 import math
 
-from . import clear_move, rules, wall_seen
+from . import clear_move, corridor_screens, rules, wall_seen
 from .geometry import point_in_rect
 from .mapspec import MapSpec
 from .questions_select import Cand, Moment
@@ -59,17 +61,20 @@ def ground_under(m: MapSpec, xy: tuple[float, float]) -> float:
                 and point_in_rect(f.footprint(), xy[0], xy[1])), default=0.0)
 
 
-def foot_rho(w: World, j: int, foot: tuple[float, float]) -> float:
+def foot_rho(w: World, j: int, foot: tuple[float, float]) -> float | None:
     """The resolution of a gold that rests on the wall met at `foot`: one pixel at its foot (`rules.resolution_m`) from
-    the camera of keyframe `j`, the evidence, at least `MIN_RHO_M`."""
+    the camera of keyframe `j`, the evidence, at least `MIN_RHO_M`. None when the camera is level with the foot's
+    ground (the ray runs along it: no bound)."""
     one = rules.resolution_m(w.rows[j]["camera"]["pos"], foot, ground_under(w.map, foot), w.cam.fx, w.cam.fy)
-    return MIN_RHO_M if one is None else max(MIN_RHO_M, one)
+    return None if one is None else max(MIN_RHO_M, one)
 
 
 def moment(w: World, k: int) -> Moment | None:
     """The look point `k`'s moment of a flier: None when the base is under `JobSpec.fly_floor_m`, when the phase is not
     in `JobSpec.clear_phases`, or when the corridor ends in open air (the cap); `answerable` when a window keyframe up
-    to `k` saw the wall hit (any stretch of it), else `unknown`. `k` is any frame of the window."""
+    to `k` saw the wall hit (any stretch of it), else `unknown`. An answerable gold whose evidence frame does not read
+    the wall's foot to within C/2 at one pixel (`foot_rho` None or `corridor_screens.error_tied` false) is not asked:
+    None. `k` is any frame of the window."""
     row, job = w.rows[k], w.job
     if row["status"]["phase"] not in job.clear_phases:
         return None
@@ -91,7 +96,10 @@ def moment(w: World, k: int) -> Moment | None:
     evidence = [seen[-1]]
     edge, heading = clear_move.move(w.robot, w.base(k), w.yaw(k), direction)
     foot = (edge[0] + far * math.cos(heading), edge[1] + far * math.sin(heading))
-    tol = rules.graded_tolerances(foot_rho(w, evidence[0], foot), need, "over", threshold=threshold)
+    rho = foot_rho(w, evidence[0], foot)
+    if rho is None or not corridor_screens.error_tied(rho, need):
+        return None
+    tol = rules.graded_tolerances(rho, need, "over", threshold=threshold)
     cand = Cand("clear_path", slots, {"type": "number", "value": far}, "answerable", tuple(evidence), (), tol,
                 decision_k=k, subjects=(f"w:{k}",), answer_class="answerable",
                 range_m=round(far + math.dist(w.camera_at(k)[0][:2], edge), 4), scope=scope_of(w, k, evidence))

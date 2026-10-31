@@ -338,10 +338,14 @@ asked by no job) get it from the compile (`rules.with_catastrophe`, called by `q
 their own. The weights and the reasons are in [question-design.md](question-design.md), "How answers are graded", with a
 replay on 0.9.0's answers. The reports give the catastrophe rate ([eval.md](eval.md), "The splits").
 
-**A list scores per item.** The answer's items are matched one to one to the gold's by maximum summed credit (the
-Hungarian method, no scipy), each pair within `MATCH_REACH` times M, each matched item earning its own four quarters at
-its own resolution (its direction quarter is earned within M, the place rule above). An answered item that matches nothing and lies in no don't-care
-circle is false (a don't-care circle drops an unmatched item, never a matched one). Then `s` is the matched credit over
+**A list scores per item.** The answer's items outside every don't-care circle are matched first, one to one to the
+gold's by maximum summed credit (the Hungarian method, no scipy), each pair within `MATCH_REACH` times M, each matched
+item earning its own four quarters at its own resolution (its direction quarter is earned within M, the place rule
+above). The items inside a circle are then matched the same way to the gold items left over, so a circle can only add
+credit: an item inside it never takes a gold item from one outside it, and adding one never lowers the credit (0.11.1;
+before, all the items were matched together, and an item inside a circle could take the gold item of a better one
+outside). An answered item outside every circle that matches nothing is false; one inside a circle that matches nothing
+is neither true nor false. Then `s` is the matched credit over
 `|gold| + FP_WEIGHT |false|`: a missed item costs one and a false item half. An empty gold's one thing is the empty
 list, so `s = 1 / (1 + FP_WEIGHT |false|)` (0.11.0): one false place scores 2/3, as it does beside a list of one thing
 found, where before 0.11.0 it scored 0, the same as ten.
@@ -375,8 +379,8 @@ ideal reader of the frames reaches:
 - an offset (`ego_now`, `ego_mem`, `person_mem`): at the camera of the evidence sighting that set the surface tie (the
   last evidence frame when no contact did), to the gold point;
 - a corridor (`clear_path`, and the best run of `open_heading`): the largest of the grid's 2 cm sub-cell, the stopper's
-  floor contact error in the frame the stop rests on, and the tie gap from the stop to that contact; a flier's wall:
-  one pixel at the wall's foot from the evidence frame, at least 2 cm;
+  floor contact error in the frame the stop rests on, and the tie gap from the stop to that contact; a flier's wall: one
+  pixel at the wall's foot from the evidence frame, at least 2 cm, and asked only where that is at most C/2 (0.11.1);
 - a route heading (`way_to`): the field's fine cell, 0.1 m (`grid.FINE_M`), the resolution the outcomes are computed at;
 - a closest approach: one pixel at the nearest evidence sighting;
 - a person in `drop_zone_people`: one pixel at the person's hull centroid, from the ask frame's camera;
@@ -419,7 +423,8 @@ distance in metres or a heading the margin is C or a tenth of the right distance
 point, the right number of metres or the best heading's run"), whichever is larger, that overstating how far the robot
 could move, or placing a thing or a person farther away than it is, counts against the answer twice as fast, that a list
 earns each item it holds the same way (the things and the places paired in the pairing whose summed credit is largest; a
-missed item costs a whole one and a false one half), that a heading earns credit by how much room it gives up against
+missed item costs a whole one and a false one half; the prompt leaves out that the scorer pairs the items outside every
+don't-care circle first, above), that a heading earns credit by how much room it gives up against
 the best heading, its right direction being room to move, and, for a job that asks `way_to`, that the way to a thing is
 credited by how much nearer to it R of driving along the heading brings the robot, by the shortest way its body fits
 through as far as it has seen; that its margin is "the largest of 15 cm, a tenth of 1 m and twice the 10 cm cell of the
@@ -505,10 +510,10 @@ The decision windows (`look_windows.windows`, `World.windows`: runs of at most `
 decision point and every task's last step) are no longer sent to a system. They stay for the unasked families that read
 them (`path_ahead`, `where_was_i`, `out_of_view`, `zone_clear`, `clearance_then`) and for `stbench view`.
 
-**The points a case draws, and what they ask,** on the dev root (36 cases a job; short and medium cases, 32 a job), on the
-0.10.0 compile after lane J2 (lane J2 changed the AMR's row alone, and the helper's row predates the removal of
-`person_mem` from its slot 2). The 0.11.0 release holds 245 questions on the AMR, 264 on the drone, 541 on the helper and
-711 on the vacuum, in all lengths:
+**The points a case draws, and what they ask,** on the dev root (36 cases a job; short and medium cases, 32 a job), on
+the 0.10.0 compile after lane J2 (lane J2 changed the AMR's row alone, and the helper's row predates the removal of
+`person_mem` from its slot 2). The 0.11.1 release holds 245 questions on the AMR, 262 on the drone, 541 on the helper
+and 711 on the vacuum, in all lengths:
 
 | Job | Frames | Look points | Look questions | End questions | One question in N frames (all questions) |
 | --- | --- | --- | --- | --- | --- |

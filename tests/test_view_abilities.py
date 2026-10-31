@@ -29,10 +29,12 @@ def test_the_layout_carries_the_columns_the_secondary_means_and_each_ability(tmp
     _, run = make_run(tmp_path)
     (arm,) = view.read_run(run, tmp_path)["arms"]
     layout = arm["layouts"]["apartment_a"]
-    assert {k: (c["mean"], c["n"]) for k, c in layout["columns"].items()} == pytest.approx(
-        {"now": (0.0, 2), "memory": (0.75, 4)})
-    assert {k: (a["mean"], a["n"], a["diagnostic"]) for k, a in layout["abilities"].items()} == pytest.approx(
-        {"memory": (0.75, 4, False), "path_ahead": (0.0, 2, False)})
+    assert {k: c["mean"] for k, c in layout["columns"].items()} == pytest.approx({"now": 0.0, "memory": 0.75})
+    assert {k: c["n"] for k, c in layout["columns"].items()} == {"now": 2, "memory": 4}
+    abilities = layout["abilities"]
+    assert {k: a["mean"] for k, a in abilities.items()} == pytest.approx({"memory": 0.75, "path_ahead": 0.0})
+    assert {k: (a["n"], a["diagnostic"]) for k, a in abilities.items()} == {
+        "memory": (4, False), "path_ahead": (2, False)}
     assert layout["abilities_mean"]["mean"] == pytest.approx(0.375) and layout["pooled"]["mean"] == pytest.approx(0.5)
     assert layout["thin"] == []
 

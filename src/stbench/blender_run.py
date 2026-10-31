@@ -9,11 +9,15 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
+import sys
 from functools import cache
 from pathlib import Path
 
-DEFAULT_BLENDER = "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe"
+# Where the installer puts Blender when it is on no PATH; Linux installs put `blender` on the PATH.
+DEFAULT_BLENDER = {"win32": "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe",
+                   "darwin": "/Applications/Blender.app/Contents/MacOS/Blender"}.get(sys.platform, "blender")
 SRC_DIR = Path(__file__).resolve().parents[1]  # the directory that holds the stbench package
 RENDER_DIR = Path(__file__).resolve().parents[2] / "render"
 
@@ -23,7 +27,8 @@ class BlenderError(Exception):
 
 
 def blender_path() -> str:
-    return os.environ.get("STBENCH_BLENDER", DEFAULT_BLENDER)
+    """`STBENCH_BLENDER`, else the `blender` on the PATH, else where this system's installer puts it."""
+    return os.environ.get("STBENCH_BLENDER") or shutil.which("blender") or DEFAULT_BLENDER
 
 
 def script(name: str) -> Path:
@@ -43,7 +48,7 @@ def command(script_name: str, *args: str) -> list[str]:
 
 def _require(exe: str) -> None:
     if not Path(exe).exists():
-        raise BlenderError(f"Blender not found at {exe}; set STBENCH_BLENDER to blender.exe")
+        raise BlenderError(f"Blender not found at {exe}; set STBENCH_BLENDER to the Blender executable")
 
 
 @cache

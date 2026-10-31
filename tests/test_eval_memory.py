@@ -67,10 +67,10 @@ def test_a_run_with_a_memory_names_it_in_every_record_and_keeps_its_store(tmp_pa
     assert only["servers"] == ["mem", "stbench"] and only["instructions"].endswith(f"\n\n{GUIDE}")
 
     assert codex_run(monkeypatch, fake, "codex:fake-model", case.private, "--memory", held.path) == 0
-    named = tmp_path / "data" / "runs" / f"codex_fake-model-{case.id}-memory-memory"
+    named = tmp_path / "runs" / f"codex_fake-model-{case.id}-memory-memory"
     assert json.loads((named / "codex.summary.json").read_text(encoding="utf-8"))["memory"] == "mem"
     assert codex_run(monkeypatch, fake, "codex:fake-model", case.private) == 0
-    plain = tmp_path / "data" / "runs" / f"codex_fake-model-{case.id}"
+    plain = tmp_path / "runs" / f"codex_fake-model-{case.id}"
     assert "memory" not in json.loads((plain / "codex.summary.json").read_text(encoding="utf-8"))
     assert "memory" not in jsonl(plain / "codex.calls.jsonl")[0] and not list(plain.glob("*-store"))
     assert [e["instructions"] for e in fake.execs()][-1].startswith("You are a helpful assistant.")
@@ -112,7 +112,7 @@ def test_eval_names_the_memory_and_a_rerun_with_another_is_refused(tmp_path, mon
     monkeypatch.setattr(cmd_run, "MEMORY_AGENTS", frozenset({"codex", "fake"}))  # eval_kit's fake agent takes one
     alpha, beta = memory(tmp_path / "a", name="alpha"), memory(tmp_path / "b", name="beta")
     assert cli("fake:ok", "--data", data, "--memory", alpha.path) == 0
-    out = data / "runs" / "fake_ok-rgb_pose-memory-memory"
+    out = tmp_path / "runs" / "fake_ok-rgb_pose-memory-memory"
     assert results(out)["memory"] == "alpha" and "fake:ok with memory alpha" in (out / "results.md").read_text("utf-8")
     assert {run["memory"] for run in RUNS} == {str(alpha.path.resolve())} and len(RUNS) == 2
     assert cli("fake:ok", "--data", data, "--out", tmp_path / "plain") == 0

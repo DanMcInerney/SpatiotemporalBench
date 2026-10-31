@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from . import asset_fetch as F
 from .asset_manifest import AssetError, Manifest, cache_dir, load, packaged_path, validate
@@ -107,6 +107,15 @@ def _fetch(args: argparse.Namespace) -> int:
     return 0
 
 
+def _through_dataset_folder(out: PurePath, platform: str = sys.platform) -> bool:
+    """Whether the resolved `out` has a folder named scripts, episodes or private in it. macOS keeps /tmp and /var under
+    /private, the system's own folder, so a leading /private there is not a dataset's."""
+    parts = out.parts[1:]
+    if platform == "darwin" and parts[:1] == ("private",):
+        parts = parts[1:]
+    return any(part.lower() in ("scripts", "episodes", "private") for part in parts)
+
+
 def _credits(args: argparse.Namespace) -> int:
     text = F.credits(_manifest(args))
     if args.out is None:
@@ -114,7 +123,7 @@ def _credits(args: argparse.Namespace) -> int:
         return 0
     try:
         out = Path(args.out).resolve()
-        if any(part.lower() in ("scripts", "episodes", "private") for part in out.parts):
+        if _through_dataset_folder(out):
             raise AssetError(f"{out} has a folder named scripts, episodes or private in it; CREDITS.md goes at the "
                              "dataset root, where no system can read it")
         out.parent.mkdir(parents=True, exist_ok=True)
